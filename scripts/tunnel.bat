@@ -12,5 +12,5 @@ echo Connecting SSH Tunnel: localhost:3000 -> RunPod:3000 and localhost:8000 -> 
 echo Keep this window OPEN while chatting!
 echo.
 
-ssh -N -L 3000:localhost:3000 -L 8000:localhost:8000 root@%RUNPOD_IP% -p %RUNPOD_PORT%
+ssh -i "~/.ssh/id_ed25519" -N -L 3000:127.0.0.1:3000 -L 8000:127.0.0.1:8000 root@%RUNPOD_IP% -p %RUNPOD_PORT%
 pause

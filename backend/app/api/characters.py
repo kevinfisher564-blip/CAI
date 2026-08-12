@@ -7,23 +7,25 @@ from app.models.character import CharacterCard, CharacterCreateRequest, Characte
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
-CHARACTERS_DIR = os.path.abspath("backend/characters")
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CHARACTERS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "characters"))
 os.makedirs(CHARACTERS_DIR, exist_ok=True)
 
 def load_all_characters() -> List[CharacterCard]:
     cards = []
     for file in os.listdir(CHARACTERS_DIR):
-        if file.endswith(".json"):
+                if file.endswith(".json"):
             filepath = os.path.join(CHARACTERS_DIR, file)
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            data = json.load(f)
                     cards.append(CharacterCard(**data))
             except Exception as e:
                 print(f"Error loading {file}: {e}")
     return cards
 
 @router.get("", response_model=List[CharacterCard])
+@router.get("/", response_model=List[CharacterCard])
 def list_characters():
     return load_all_characters()
 

@@ -7,7 +7,7 @@ from faster_whisper import WhisperModel
 app = FastAPI(title="Faster-Whisper STT Service")
 
 # Initialize Whisper model on GPU with float16
-MODEL_SIZE = os.getenv("WHISPER_MODEL", "large-v3-turbo")
+MODEL_SIZE = os.getenv("WHISPER_MODEL", "deepdml/faster-whisper-large-v3-turbo-ct2")
 print(f"Loading Faster-Whisper model: {MODEL_SIZE} on CUDA...")
 stt_model = WhisperModel(MODEL_SIZE, device="cuda", compute_type="float16")
 print("Faster-Whisper STT service initialized!")

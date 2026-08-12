@@ -4,9 +4,11 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.services.context_manager import context_manager
 
+import os
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-VLLM_API_URL = "http://localhost:8001/v1/chat/completions"
+VLLM_API_URL = os.getenv("VLLM_API_URL", "http://localhost:9001/v1/chat/completions")
 
 class ChatMessage(BaseModel):
     role: str

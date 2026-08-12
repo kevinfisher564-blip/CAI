@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Ensure backend directory is in sys.path so 'app' module imports resolve cleanly
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +36,7 @@ app.include_router(chat_router)
 app.include_router(voice_router)
 
 # Mount characters directory for static avatar & voice sample serving
-CHARACTERS_DIR = os.path.abspath("backend/characters")
+CHARACTERS_DIR = os.path.abspath(os.path.join(backend_dir, "characters"))
 os.makedirs(CHARACTERS_DIR, exist_ok=True)
 app.mount("/static/characters", StaticFiles(directory=CHARACTERS_DIR), name="characters_static")
 
