@@ -3,10 +3,12 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from typing import Optional
 
+import os
+
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
-STT_SERVICE_URL = "http://localhost:8002/transcribe"
-TTS_SERVICE_URL = "http://localhost:8003/synthesize"
+STT_SERVICE_URL = os.getenv("STT_SERVICE_URL", "http://127.0.0.1:8002/transcribe")
+TTS_SERVICE_URL = os.getenv("TTS_SERVICE_URL", "http://127.0.0.1:8003/synthesize")
 
 @router.post("/stt")
 async def speech_to_text(file: UploadFile = File(...)):
@@ -49,7 +51,8 @@ async def text_to_speech(
             try:
                 res = await client.post(TTS_SERVICE_URL, data=data)
                 if res.status_code == 200:
-                    return Response(content=res.content, media_type="audio/wav")
+                    media_type = res.headers.get("content-type", "audio/mpeg")
+                    return Response(content=res.content, media_type=media_type)
             except Exception as e:
                 print(f"TTS engine note: {e}")
 

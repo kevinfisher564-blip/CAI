@@ -8,7 +8,7 @@ import os
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-VLLM_API_URL = os.getenv("VLLM_API_URL", "http://localhost:9001/v1/chat/completions")
+VLLM_API_URL = os.getenv("VLLM_API_URL", "http://127.0.0.1:9001/v1/chat/completions")
 
 class ChatMessage(BaseModel):
     role: str
@@ -51,8 +51,10 @@ async def chat_completion(req: ChatRequest):
                         "character_id": req.character_id,
                         "message": {"role": "assistant", "content": assistant_text}
                     }
+                else:
+                    print(f"[vLLM Warning] HTTP Status {response.status_code}: {response.text}")
             except Exception as e:
-                print(f"vLLM connection note: {e}")
+                print(f"[vLLM Connection Error] Could not connect to vLLM at {VLLM_API_URL}: {e}")
 
         # Fallback response for offline / dev testing mode
         char_name = req.character_card.get("name", "Character")

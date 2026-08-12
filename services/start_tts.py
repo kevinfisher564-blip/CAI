@@ -1,8 +1,10 @@
 import os
+import sys
+import subprocess
 import tempfile
 import uvicorn
-from fastapi import FastAPI, HTTPException, Form, File, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Form
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import io
@@ -12,13 +14,33 @@ import numpy as np
 app = FastAPI(title="Zero-Shot & Preset TTS Service")
 
 PRESET_VOICES = {
-    "female_narrator": "Clear, expressive female narrative tone",
-    "male_deep": "Resonant, calm male voice",
-    "soft_storyteller": "Warm, atmospheric storyteller tone",
-    "energetic_companion": "Upbeat, lively conversational voice"
+    "female_narrator": "en-US-AvaNeural",
+    "male_deep": "en-US-AndrewNeural",
+    "soft_storyteller": "en-US-JennyNeural",
+    "energetic_companion": "en-US-BrianNeural"
 }
 
-print("Initializing Zero-Shot TTS Engine (F5-TTS / XTTSv2)...")
+def ensure_tts_backend():
+    try:
+        import edge_tts
+        return "edge_tts"
+    except ImportError:
+        pass
+    
+    try:
+        import gtts
+        return "gtts"
+    except ImportError:
+        pass
+
+    print("Attempting automatic installation of edge-tts...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "edge-tts"])
+        import edge_tts
+        return "edge_tts"
+    except Exception as e:
+        print(f"Could not auto-install edge-tts: {e}")
+        return "fallback"
 
 class TTSRequest(BaseModel):
     text: str
@@ -36,27 +58,46 @@ async def synthesize_speech(
     voice_sample_path: Optional[str] = Form(None)
 ):
     """
-    Synthesize speech for character responses.
-    If voice_sample_path is provided, performs zero-shot voice cloning from the reference audio.
-    Otherwise, uses the designated voice_preset fallback.
+    Synthesize high-quality neural speech for character responses.
+    Uses edge-tts (Microsoft Neural voices) or gTTS for natural spoken audio.
     """
     try:
-        # Generate synthesized audio buffer
-        # (Integrates F5-TTS / XTTSv2 pipeline on GPU)
-        sample_rate = 24000
-        duration_sec = max(1.0, len(text) * 0.06)
-        t = np.linspace(0, duration_sec, int(sample_rate * duration_sec), False)
-        
-        # Soft sine generator fallback for initial mock/testing before model weights load
-        audio_data = 0.1 * np.sin(2 * np.pi * 440 * t)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
-            sf.write(temp_wav.name, audio_data, sample_rate)
-            temp_path = temp_wav.name
+        backend = ensure_tts_backend()
 
-        return FileResponse(temp_path, media_type="audio/wav", filename="response.wav")
+        if backend == "edge_tts":
+            import edge_tts
+            voice = PRESET_VOICES.get(voice_preset, "en-US-AvaNeural")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+                temp_path = temp_file.name
+            
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(temp_path)
+            return FileResponse(temp_path, media_type="audio/mpeg", filename="response.mp3")
+
+        elif backend == "gtts":
+            from gtts import gTTS
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+                temp_path = temp_file.name
+
+            tts = gTTS(text=text, lang="en")
+            tts.save(temp_path)
+            return FileResponse(temp_path, media_type="audio/mpeg", filename="response.mp3")
+
+        else:
+            # Fallback sine wave generator as last resort
+            sample_rate = 24000
+            duration_sec = max(1.0, len(text) * 0.06)
+            t = np.linspace(0, duration_sec, int(sample_rate * duration_sec), False)
+            audio_data = 0.1 * np.sin(2 * np.pi * 440 * t)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
+                sf.write(temp_wav.name, audio_data, sample_rate)
+                temp_path = temp_wav.name
+
+            return FileResponse(temp_path, media_type="audio/wav", filename="response.wav")
 
     except Exception as e:
+        print(f"TTS Synthesis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

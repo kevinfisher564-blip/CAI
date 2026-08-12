@@ -23,7 +23,7 @@ apt-get update && apt-get install -y \
 # 2. Set up Python Environment & Install Dependencies
 pip install --upgrade pip
 pip install -r backend/requirements.txt
-pip install vllm faster-whisper f5-tts "huggingface_hub[cli]"
+pip install vllm faster-whisper f5-tts edge-tts gTTS "huggingface_hub[cli]"
 
 # 3. Configure Hugging Face CLI & Token Authentication
 export HF_HOME="/workspace/huggingface-cache"
