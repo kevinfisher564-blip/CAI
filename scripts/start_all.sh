@@ -27,7 +27,7 @@ PYTHONPATH=backend python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 800
 # 5. Start React Vite Frontend Web UI (if node/npm is installed)
 if command -v npm >/dev/null 2>&1; then
     echo "[5/5] Starting React Frontend Web UI on Port 3000..."
-    (cd frontend && npm install --no-audit && npm run dev -- --host 0.0.0.0 --port 3000) > logs/frontend.log 2>&1 &
+    (cd frontend && npm install --no-audit && npm run dev -- --host 0.0.0.0 --port 3000) > ../logs/frontend.log 2>&1 &
 else
     echo "[5/5] Skipping frontend on RunPod (npm not found). Run 'apt-get update && apt-get install -y nodejs npm' or run frontend on Windows PC."
 fi

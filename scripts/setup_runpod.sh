@@ -23,7 +23,7 @@ apt-get update && apt-get install -y \
 # 2. Set up Python Environment & Install Dependencies
 pip install --upgrade pip
 pip install -r backend/requirements.txt
-pip install vllm faster-whisper f5-tts edge-tts gTTS "huggingface_hub[cli]"
+pip install vllm faster-whisper f5-tts edge-tts "huggingface_hub[cli]"
 
 # 3. Configure Hugging Face CLI & Token Authentication
 export HF_HOME="/workspace/huggingface-cache"
@@ -48,9 +48,26 @@ echo "=========================================================="
 echo " Pre-downloading Model Weights via Hugging Face CLI"
 echo "=========================================================="
 
-echo "[1/2] Pre-downloading Qwen2.5-VL-7B-Instruct..."
-hf download Qwen/Qwen2.5-VL-7B-Instruct --cache-dir ${HF_HOME}
+#echo "[1/2] Pre-downloading Qwen2.5-VL-7B-Instruct..."
+#hf download Qwen/Qwen2.5-VL-7B-Instruct --cache-dir ${HF_HOME}
 
+echo "[1/2] Pre-downloading Qwen2.5-VL-7B-Instruct Abliterated..."
+mkdir -p /workspace/models/qwen3-vl-8b-abliterated
+hf download wangkanai/qwen3-vl-8b-instruct \
+    qwen3-vl-8b-instruct-abliterated.safetensors \
+    --local-dir /workspace/models/qwen3-vl-8b-abliterated
+
+hf download Qwen/Qwen3-VL-8B-Instruct \
+    config.json \
+    generation_config.json \
+    preprocessor_config.json \
+    video_preprocessor_config.json \
+    tokenizer.json \
+    tokenizer_config.json \
+    vocab.json \
+    merges.txt \
+    --local-dir /workspace/models/qwen3-vl-8b-abliterated
+        
 echo "[2/2] Pre-downloading Faster-Whisper large-v3-turbo..."
 hf download deepdml/faster-whisper-large-v3-turbo-ct2 --cache-dir ${HF_HOME}
 

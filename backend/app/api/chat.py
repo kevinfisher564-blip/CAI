@@ -9,6 +9,7 @@ import os
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 VLLM_API_URL = os.getenv("VLLM_API_URL", "http://127.0.0.1:9001/v1/chat/completions")
+VLLM_MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "/workspace/models/qwen3-vl-8b-abliterated")
 
 class ChatMessage(BaseModel):
     role: str
@@ -34,7 +35,7 @@ async def chat_completion(req: ChatRequest):
         )
 
         payload = {
-            "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+            "model": VLLM_MODEL_NAME,
             "messages": formatted_messages,
             "max_tokens": 1024,
             "temperature": 0.7,

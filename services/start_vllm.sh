@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start vLLM inference engine hosting Qwen2.5-VL on GPU (Port 8001)
 
-MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
+MODEL_NAME="/workspace/models/qwen3-vl-8b-abliterated"
 PORT=9001
 GPU_MEMORY_UTIL=0.48
 MAX_MODEL_LEN=32768
