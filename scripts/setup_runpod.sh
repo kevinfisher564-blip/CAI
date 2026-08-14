@@ -22,8 +22,10 @@ apt-get update && apt-get install -y \
 
 # 2. Set up Python Environment & Install Dependencies
 pip install --upgrade pip
+# Modules specifically for running the orchestrator
 pip install -r backend/requirements.txt
-pip install vllm faster-whisper f5-tts edge-tts "huggingface_hub[cli]"
+# Modules for hosting the individual models
+pip install vllm faster-whisper f5-tts edge-tts
 
 # 3. Configure Hugging Face CLI & Token Authentication
 export HF_HOME="/workspace/huggingface-cache"
@@ -35,12 +37,12 @@ echo "=========================================================="
 
 if [ -n "${HF_TOKEN}" ]; then
     echo "HF_TOKEN detected in environment. Logging into Hugging Face CLI..."
-    hf auth token
+    hf auth login --token "${HF_TOKEN}"
 else
     echo "Tip: You can pass your token via HF_TOKEN environment variable:"
     echo "     export HF_TOKEN='hf_your_token_here'"
     echo "Checking if already logged into Hugging Face..."
-    hf whoami || true
+    hf auth whoami || true
 fi
 
 # 4. Pre-download Model Weights via Hugging Face CLI (Multi-threaded fast download)
