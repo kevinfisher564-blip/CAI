@@ -1,15 +1,10 @@
-import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.services.context_manager import context_manager
-
-import os
+from app.services.llm_service import llm_service
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
-
-VLLM_API_URL = os.getenv("VLLM_API_URL", "http://127.0.0.1:9001/v1/chat/completions")
-VLLM_MODEL_NAME = os.getenv("VLLM_MODEL_NAME", "/workspace/models/qwen3-vl-8b-abliterated")
 
 class ChatMessage(BaseModel):
     role: str
@@ -25,7 +20,7 @@ class ChatRequest(BaseModel):
 async def chat_completion(req: ChatRequest):
     """
     Generate completion for single-character or multi-character turns.
-    Passes assembled 3-tier context and multimodal images to vLLM (Qwen2.5-VL).
+    Passes assembled 3-tier context and multimodal images to LLM service.
     """
     try:
         formatted_messages = context_manager.build_prompt_payload(
@@ -34,28 +29,18 @@ async def chat_completion(req: ChatRequest):
             story_summary=req.story_summary
         )
 
-        payload = {
-            "model": VLLM_MODEL_NAME,
-            "messages": formatted_messages,
-            "max_tokens": 1024,
-            "temperature": 0.7,
-            "top_p": 0.9
-        }
+        assistant_text = await llm_service.generate_chat_completion(
+            messages=formatted_messages,
+            max_tokens=1024,
+            temperature=0.7,
+            top_p=0.9
+        )
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            try:
-                response = await client.post(VLLM_API_URL, json=payload)
-                if response.status_code == 200:
-                    res_json = response.json()
-                    assistant_text = res_json["choices"][0]["message"]["content"]
-                    return {
-                        "character_id": req.character_id,
-                        "message": {"role": "assistant", "content": assistant_text}
-                    }
-                else:
-                    print(f"[vLLM Warning] HTTP Status {response.status_code}: {response.text}")
-            except Exception as e:
-                print(f"[vLLM Connection Error] Could not connect to vLLM at {VLLM_API_URL}: {e}")
+        if assistant_text is not None:
+            return {
+                "character_id": req.character_id,
+                "message": {"role": "assistant", "content": assistant_text}
+            }
 
         # Fallback response for offline / dev testing mode
         char_name = req.character_card.get("name", "Character")

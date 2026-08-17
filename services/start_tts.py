@@ -20,6 +20,39 @@ PRESET_VOICES = {
     "energetic_companion": "en-US-BrianNeural"
 }
 
+import re
+
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F700-\U0001F77F"  # alchemical symbols
+    "\U0001F780-\U0001F7FF"  # geometric shapes
+    "\U0001F800-\U0001F8FF"  # arrows
+    "\U0001F900-\U0001F9FF"  # supplemental symbols and pictographs
+    "\U0001FA00-\U0001FA6F"  # symbols and pictographs extended-A
+    "\U0001FA70-\U0001FAFF"  # symbols and pictographs extended-B
+    "\U00002700-\U000027BF"  # dingbats
+    "\U00002600-\U000026FF"  # misc symbols
+    "\U00002B50-\U00002B55"  # star symbols
+    "\U0000200D"            # zero-width joiner
+    "\U0000FE00-\U0000FE0F"  # variation selectors
+    "]+",
+    flags=re.UNICODE
+)
+
+def clean_text_for_tts(raw_text: str) -> str:
+    """Strip emojis and normalize whitespace for natural speech synthesis."""
+    if not raw_text:
+        return ""
+    # Strip emojis
+    cleaned = EMOJI_PATTERN.sub("", raw_text)
+    # Normalize excess whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
 def ensure_tts_backend():
     try:
         import edge_tts
@@ -62,6 +95,10 @@ async def synthesize_speech(
     Uses edge-tts (Microsoft Neural voices) or gTTS for natural spoken audio.
     """
     try:
+        spoken_text = clean_text_for_tts(text)
+        if not spoken_text:
+            spoken_text = "..."
+
         backend = ensure_tts_backend()
 
         if backend == "edge_tts":
@@ -70,7 +107,7 @@ async def synthesize_speech(
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
                 temp_path = temp_file.name
             
-            communicate = edge_tts.Communicate(text, voice)
+            communicate = edge_tts.Communicate(spoken_text, voice)
             await communicate.save(temp_path)
             return FileResponse(temp_path, media_type="audio/mpeg", filename="response.mp3")
 
@@ -79,7 +116,7 @@ async def synthesize_speech(
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
                 temp_path = temp_file.name
 
-            tts = gTTS(text=text, lang="en")
+            tts = gTTS(text=spoken_text, lang="en")
             tts.save(temp_path)
             return FileResponse(temp_path, media_type="audio/mpeg", filename="response.mp3")
 

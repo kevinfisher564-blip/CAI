@@ -36,8 +36,19 @@ export default function App() {
     setViewMode('chat');
   };
 
+  const handleEditCharacter = (char) => {
+    setSelectedCharId(char.id);
+    setEditingCharacter(char);
+    setViewMode('editor');
+  };
+
   const handleCreateNew = () => {
     setEditingCharacter(null);
+    setViewMode('editor');
+  };
+
+  const handleImportCharacter = (importedData) => {
+    setEditingCharacter(importedData);
     setViewMode('editor');
   };
 
@@ -169,7 +180,9 @@ export default function App() {
           characters={characters} 
           selectedId={selectedCharId} 
           onSelect={handleSelectCharacter}
+          onEdit={handleEditCharacter}
           onCreateNew={handleCreateNew}
+          onImport={handleImportCharacter}
         />
       </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image as ImageIcon, Volume2, BookOpen, User } from 'lucide-react';
+import { Send, Mic, Image as ImageIcon, Volume2, VolumeX, Square } from 'lucide-react';
 
 export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
   const [messages, setMessages] = useState([]);
@@ -8,11 +8,25 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
   const [imagePreview, setImagePreview] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [autoSpeak, setAutoSpeak] = useState(true);
+  
+  // Persist autoSpeak preference in localStorage across character switches & reloads
+  const [autoSpeak, setAutoSpeak] = useState(() => {
+    const saved = localStorage.getItem('cai_auto_speak');
+    return saved !== null ? saved === 'true' : true;
+  });
 
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const textareaRef = useRef(null);
+  const currentAudioRef = useRef(null);
+  const autoSpeakRef = useRef(autoSpeak);
+
+  // Keep autoSpeakRef in sync with state and persist to localStorage
+  useEffect(() => {
+    autoSpeakRef.current = autoSpeak;
+    localStorage.setItem('cai_auto_speak', autoSpeak ? 'true' : 'false');
+  }, [autoSpeak]);
 
   useEffect(() => {
     if (character) {
@@ -23,12 +37,40 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
           sender: character.name
         }
       ]);
+      // Stop any previously playing audio when switching characters
+      stopAudio();
     }
   }, [character]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 46), 220)}px`;
+    }
+  }, [input]);
+
+  const stopAudio = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setIsPlayingAudio(false);
+  };
+
+  const handleToggleAutoSpeak = () => {
+    setAutoSpeak((prev) => {
+      const next = !prev;
+      if (!next) {
+        stopAudio();
+      }
+      return next;
+    });
+  };
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -56,6 +98,9 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
     setInput('');
     setSelectedImage(null);
     setImagePreview(null);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '46px';
+    }
 
     const response = await onSendMessage(currentInput, currentImage, messages);
     if (response && response.message) {
@@ -66,13 +111,22 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
       };
       setMessages((prev) => [...prev, botMsg]);
 
-      if (autoSpeak) {
+      // Use ref to read latest toggle state (prevents async closure bugs)
+      if (autoSpeakRef.current) {
         speakResponse(botMsg.content);
       }
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   const speakResponse = async (text) => {
+    stopAudio();
     setIsPlayingAudio(true);
     try {
       const formData = new FormData();
@@ -88,14 +142,24 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
         const blob = await res.blob();
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
-        audio.onended = () => setIsPlayingAudio(false);
-        audio.play();
+        currentAudioRef.current = audio;
+
+        audio.onended = () => {
+          setIsPlayingAudio(false);
+          currentAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          setIsPlayingAudio(false);
+          currentAudioRef.current = null;
+        };
+        await audio.play();
       } else {
         setIsPlayingAudio(false);
       }
     } catch (err) {
       console.error('Audio playback error:', err);
       setIsPlayingAudio(false);
+      currentAudioRef.current = null;
     }
   };
 
@@ -152,13 +216,30 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {isPlayingAudio && (
+            <button
+              type="button"
+              className="action-btn"
+              onClick={stopAudio}
+              title="Stop voice audio"
+              style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', borderColor: '#ef4444' }}
+            >
+              <Square size={16} />
+            </button>
+          )}
+
           <button 
+            type="button"
             className={`action-btn ${autoSpeak ? 'active' : ''}`}
-            onClick={() => setAutoSpeak(!autoSpeak)}
-            title={autoSpeak ? 'Auto Voice Response: Enabled' : 'Auto Voice Response: Disabled'}
-            style={autoSpeak ? { background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', borderColor: '#6366f1' } : {}}
+            onClick={handleToggleAutoSpeak}
+            title={autoSpeak ? 'Auto Voice: Enabled (Click to Mute)' : 'Auto Voice: Disabled (Click to Enable)'}
+            style={
+              autoSpeak 
+                ? { background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', borderColor: '#6366f1' } 
+                : { color: '#6b7280', borderColor: 'rgba(255, 255, 255, 0.1)', background: 'transparent' }
+            }
           >
-            <Volume2 size={20} />
+            {autoSpeak ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
         </div>
       </div>
@@ -174,7 +255,34 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
                 style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', marginBottom: '8px' }} 
               />
             )}
-            <div>{msg.content}</div>
+            <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</div>
+            {msg.role === 'assistant' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  title="Play Voice"
+                  onClick={() => speakResponse(msg.content)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.75rem',
+                    padding: '2px 4px',
+                    borderRadius: '4px',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                >
+                  <Volume2 size={13} /> Speak
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {isPlayingAudio && (
@@ -188,9 +296,10 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
       {/* Input Bar */}
       <div className="chat-input-bar">
         {imagePreview && (
-          <div style={{ position: 'relative', marginRight: '8px' }}>
+          <div style={{ position: 'relative', marginRight: '4px', alignSelf: 'center' }}>
             <img src={imagePreview} alt="Preview" style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} />
             <button 
+              type="button"
               onClick={() => { setSelectedImage(null); setImagePreview(null); }}
               style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', cursor: 'pointer' }}
             >
@@ -205,6 +314,7 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
         </label>
 
         <button 
+          type="button"
           className={`action-btn ${isRecording ? 'recording-pulse' : ''}`}
           onClick={toggleRecording}
           title={isRecording ? 'Stop Recording' : 'Push to Talk (STT Mic)'}
@@ -212,16 +322,17 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
           <Mic size={20} />
         </button>
 
-        <input 
-          type="text" 
-          className="text-input" 
+        <textarea 
+          ref={textareaRef}
+          className="text-input chat-textarea" 
+          rows={1}
           value={input} 
           onChange={(e) => setInput(e.target.value)} 
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder={`Chat with ${character.name}...`}
+          onKeyDown={handleKeyDown}
+          placeholder={`Chat with ${character.name}... (Enter to send, Shift+Enter for new line)`}
         />
 
-        <button className="action-btn" onClick={handleSend} title="Send Message">
+        <button type="button" className="action-btn" onClick={handleSend} title="Send Message">
           <Send size={20} />
         </button>
       </div>

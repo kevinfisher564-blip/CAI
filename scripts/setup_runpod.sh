@@ -28,7 +28,7 @@ pip install -r backend/requirements.txt
 pip install vllm faster-whisper f5-tts edge-tts
 
 # 3. Configure Hugging Face CLI & Token Authentication
-export HF_HOME="/workspace/huggingface-cache"
+export HF_HOME="    "
 mkdir -p ${HF_HOME}
 
 echo "=========================================================="
@@ -69,6 +69,8 @@ hf download Qwen/Qwen3-VL-8B-Instruct \
     vocab.json \
     merges.txt \
     --local-dir /workspace/models/qwen3-vl-8b-abliterated
+
+hf download mistralai/Pixtral-12B-2409 --cache-dir ${HF_HOME}    
         
 echo "[2/2] Pre-downloading Faster-Whisper large-v3-turbo..."
 hf download deepdml/faster-whisper-large-v3-turbo-ct2 --cache-dir ${HF_HOME}
