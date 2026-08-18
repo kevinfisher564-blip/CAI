@@ -60,11 +60,14 @@ class LLMService:
         max_tokens: int = 1024,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        min_p: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
         model: Optional[str] = None,
         timeout: float = 60.0
     ) -> Optional[str]:
         """
         Sends chat completion request to the OpenAI-compatible endpoint.
+        Supports per-character temperature, top_p, min_p, repetition_penalty, and max_tokens parameters.
         Returns the generated assistant text content, or None if unavailable.
         """
         endpoint = f"{self.base_url}/v1/chat/completions"
@@ -80,6 +83,10 @@ class LLMService:
                 "temperature": temperature,
                 "top_p": top_p
             }
+            if min_p is not None and min_p > 0:
+                payload["min_p"] = min_p
+            if repetition_penalty is not None and repetition_penalty > 0:
+                payload["repetition_penalty"] = repetition_penalty
 
             try:
                 response = await client.post(endpoint, json=payload)

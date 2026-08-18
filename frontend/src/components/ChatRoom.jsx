@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image as ImageIcon, Volume2, VolumeX, Square, Compass, Users, MessageSquarePlus, Sparkles } from 'lucide-react';
+import { Send, Mic, Image as ImageIcon, Volume2, VolumeX, Square, Compass, Users, MessageSquarePlus, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function ChatRoom({ 
   characters = [], 
@@ -13,6 +13,7 @@ export default function ChatRoom({
   const activeCharacters = characters.length > 0 ? characters : (character ? [character] : []);
 
   const [messages, setMessages] = useState([]);
+  const [greetingIndices, setGreetingIndices] = useState({});
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -45,6 +46,7 @@ export default function ChatRoom({
   useEffect(() => {
     stopAudio();
     const initialMsgs = [];
+    const initialIndices = {};
 
     // Optional ambient scenario narrative hook
     if (scenario && scenario.initial_message) {
@@ -57,17 +59,43 @@ export default function ChatRoom({
 
     // Opening greetings from participating characters
     activeCharacters.forEach((char) => {
+      initialIndices[char.id] = 0;
       initialMsgs.push({
         role: 'assistant',
         content: char.first_mes || `Hello! I am ${char.name}.`,
         sender: char.name,
         character_id: char.id,
-        voice_preset: char.voice_preset
+        voice_preset: char.voice_preset,
+        isInitialGreeting: true
       });
     });
 
+    setGreetingIndices(initialIndices);
     setMessages(initialMsgs);
   }, [scenario?.id, activeCharacters.map((c) => c.id).join(',')]);
+
+  const handleSwipeGreeting = (charId, direction) => {
+    const char = activeCharacters.find((c) => c.id === charId);
+    if (!char) return;
+    const allGreetings = [char.first_mes || `Hello! I am ${char.name}.`, ...(char.alternate_greetings || [])];
+    if (allGreetings.length <= 1) return;
+
+    const currentIndex = greetingIndices[charId] || 0;
+    let newIndex = currentIndex + direction;
+    if (newIndex < 0) newIndex = allGreetings.length - 1;
+    if (newIndex >= allGreetings.length) newIndex = 0;
+
+    setGreetingIndices((prev) => ({ ...prev, [charId]: newIndex }));
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.isInitialGreeting && msg.character_id === charId) {
+          return { ...msg, content: allGreetings[newIndex] };
+        }
+        return msg;
+      })
+    );
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -466,13 +494,44 @@ export default function ChatRoom({
           return (
             <div key={idx} className={`message-bubble message-${msg.role}`}>
               {!isUser && msg.sender && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                  <div className="avatar-circle" style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>
-                    {msg.sender[0].toUpperCase()}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="avatar-circle" style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>
+                      {msg.sender[0].toUpperCase()}
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#818cf8' }}>
+                      {msg.sender}
+                    </span>
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#818cf8' }}>
-                    {msg.sender}
-                  </span>
+
+                  {msg.isInitialGreeting && (() => {
+                    const charObj = activeCharacters.find((c) => c.id === msg.character_id);
+                    const totalGreetings = 1 + (charObj?.alternate_greetings?.length || 0);
+                    if (totalGreetings <= 1) return null;
+                    const currentIdx = greetingIndices[msg.character_id] || 0;
+
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '12px', padding: '2px 6px', fontSize: '0.75rem', color: '#9ca3af' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleSwipeGreeting(msg.character_id, -1)}
+                          title="Previous alternate greeting swipe"
+                          style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                          <ChevronLeft size={13} />
+                        </button>
+                        <span>{currentIdx + 1} / {totalGreetings}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleSwipeGreeting(msg.character_id, 1)}
+                          title="Next alternate greeting swipe"
+                          style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                        >
+                          <ChevronRight size={13} />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
