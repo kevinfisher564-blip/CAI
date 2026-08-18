@@ -157,6 +157,10 @@ export function validateAndParseCharacterJson(input) {
   }
 
   // Voice preset validation
+  const validVoicePresets = ['female_narrator', 'male_deep', 'soft_storyteller', 'energetic_companion'];
+  const rawVoicePreset = data.voice_preset || parsed.voice_preset || extensions['voice_preset'];
+  const voice_preset = validVoicePresets.includes(rawVoicePreset) ? rawVoicePreset : 'female_narrator';
+
   // Sampling parameters (temperature, top_p, min_p, repetition_penalty, max_tokens)
   const rawTemp = data.temperature ?? parsed.temperature ?? extensions.temperature;
   const temperature = rawTemp !== undefined && rawTemp !== null && !isNaN(Number(rawTemp)) ? Number(rawTemp) : 0.7;
