@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.characters import router as characters_router
+from app.api.scenarios import router as scenarios_router
 from app.api.chat import router as chat_router
 from app.api.voice import router as voice_router
 
@@ -32,6 +33,7 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(characters_router)
+app.include_router(scenarios_router)
 app.include_router(chat_router)
 app.include_router(voice_router)
 

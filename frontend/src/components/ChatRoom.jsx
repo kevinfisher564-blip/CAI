@@ -1,15 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image as ImageIcon, Volume2, VolumeX, Square } from 'lucide-react';
+import { Send, Mic, Image as ImageIcon, Volume2, VolumeX, Square, Compass, Users, MessageSquarePlus, Sparkles } from 'lucide-react';
 
-export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
+export default function ChatRoom({ 
+  characters = [], 
+  character = null, 
+  scenario = null, 
+  onSendMessage, 
+  onAudioRecord,
+  onOpenNewChat
+}) {
+  // Normalize characters list
+  const activeCharacters = characters.length > 0 ? characters : (character ? [character] : []);
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [activeSpeaker, setActiveSpeaker] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentTurnCharacter, setCurrentTurnCharacter] = useState(null);
   
-  // Persist autoSpeak preference in localStorage across character switches & reloads
+  // Persist autoSpeak preference in localStorage across sessions
   const [autoSpeak, setAutoSpeak] = useState(() => {
     const saved = localStorage.getItem('cai_auto_speak');
     return saved !== null ? saved === 'true' : true;
@@ -22,29 +35,43 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
   const currentAudioRef = useRef(null);
   const autoSpeakRef = useRef(autoSpeak);
 
-  // Keep autoSpeakRef in sync with state and persist to localStorage
+  // Keep autoSpeakRef in sync
   useEffect(() => {
     autoSpeakRef.current = autoSpeak;
     localStorage.setItem('cai_auto_speak', autoSpeak ? 'true' : 'false');
   }, [autoSpeak]);
 
+  // Initialize room when active characters or scenario changes
   useEffect(() => {
-    if (character) {
-      setMessages([
-        {
-          role: 'assistant',
-          content: character.first_mes || `Hello! I am ${character.name}.`,
-          sender: character.name
-        }
-      ]);
-      // Stop any previously playing audio when switching characters
-      stopAudio();
+    stopAudio();
+    const initialMsgs = [];
+
+    // Optional ambient scenario narrative hook
+    if (scenario && scenario.initial_message) {
+      initialMsgs.push({
+        role: 'system',
+        content: scenario.initial_message,
+        isScenarioHook: true
+      });
     }
-  }, [character]);
+
+    // Opening greetings from participating characters
+    activeCharacters.forEach((char) => {
+      initialMsgs.push({
+        role: 'assistant',
+        content: char.first_mes || `Hello! I am ${char.name}.`,
+        sender: char.name,
+        character_id: char.id,
+        voice_preset: char.voice_preset
+      });
+    });
+
+    setMessages(initialMsgs);
+  }, [scenario?.id, activeCharacters.map((c) => c.id).join(',')]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isGenerating]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -60,6 +87,7 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
       currentAudioRef.current = null;
     }
     setIsPlayingAudio(false);
+    setActiveSpeaker(null);
   };
 
   const handleToggleAutoSpeak = () => {
@@ -82,56 +110,65 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
     }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() && !selectedImage) return;
+  // Sequential audio playback helper
+  const playAudioPromise = (text, voicePreset, speakerName) => {
+    return new Promise(async (resolve) => {
+      if (!autoSpeakRef.current) return resolve();
+      stopAudio();
+      setIsPlayingAudio(true);
+      setActiveSpeaker(speakerName);
 
-    const userMsg = {
-      role: 'user',
-      content: input,
-      imagePreview: imagePreview
-    };
+      try {
+        const formData = new FormData();
+        formData.append('text', text);
+        formData.append('voice_preset', voicePreset || 'female_narrator');
 
-    setMessages((prev) => [...prev, userMsg]);
+        const res = await fetch('/api/voice/tts', {
+          method: 'POST',
+          body: formData
+        });
 
-    const currentInput = input;
-    const currentImage = imagePreview;
-    setInput('');
-    setSelectedImage(null);
-    setImagePreview(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '46px';
-    }
+        if (res.ok) {
+          const blob = await res.blob();
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          currentAudioRef.current = audio;
 
-    const response = await onSendMessage(currentInput, currentImage, messages);
-    if (response && response.message) {
-      const botMsg = {
-        role: 'assistant',
-        content: response.message.content,
-        sender: character.name
-      };
-      setMessages((prev) => [...prev, botMsg]);
-
-      // Use ref to read latest toggle state (prevents async closure bugs)
-      if (autoSpeakRef.current) {
-        speakResponse(botMsg.content);
+          audio.onended = () => {
+            setIsPlayingAudio(false);
+            setActiveSpeaker(null);
+            currentAudioRef.current = null;
+            resolve();
+          };
+          audio.onerror = () => {
+            setIsPlayingAudio(false);
+            setActiveSpeaker(null);
+            currentAudioRef.current = null;
+            resolve();
+          };
+          await audio.play();
+        } else {
+          setIsPlayingAudio(false);
+          setActiveSpeaker(null);
+          resolve();
+        }
+      } catch (err) {
+        console.error('Audio playback error:', err);
+        setIsPlayingAudio(false);
+        setActiveSpeaker(null);
+        resolve();
       }
-    }
+    });
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const speakResponse = async (text) => {
+  const speakSingleMessage = async (text, voicePreset, speakerName) => {
     stopAudio();
     setIsPlayingAudio(true);
+    setActiveSpeaker(speakerName);
     try {
       const formData = new FormData();
       formData.append('text', text);
-      formData.append('voice_preset', character?.voice_preset || 'female_narrator');
+      formData.append('voice_preset', voicePreset || 'female_narrator');
 
       const res = await fetch('/api/voice/tts', {
         method: 'POST',
@@ -146,20 +183,92 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
 
         audio.onended = () => {
           setIsPlayingAudio(false);
+          setActiveSpeaker(null);
           currentAudioRef.current = null;
         };
         audio.onerror = () => {
           setIsPlayingAudio(false);
+          setActiveSpeaker(null);
           currentAudioRef.current = null;
         };
         await audio.play();
       } else {
         setIsPlayingAudio(false);
+        setActiveSpeaker(null);
       }
     } catch (err) {
       console.error('Audio playback error:', err);
       setIsPlayingAudio(false);
+      setActiveSpeaker(null);
       currentAudioRef.current = null;
+    }
+  };
+
+  const handleSend = async () => {
+    if ((!input.trim() && !selectedImage) || isGenerating || activeCharacters.length === 0) return;
+
+    const userMsg = {
+      role: 'user',
+      content: input,
+      imagePreview: imagePreview
+    };
+
+    const currentInput = input;
+    const currentImage = imagePreview;
+    setInput('');
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '46px';
+    }
+
+    let updatedHistory = [...messages, userMsg];
+    setMessages(updatedHistory);
+    setIsGenerating(true);
+
+    // Multi-Character Round-Robin Turn Generation
+    try {
+      for (const char of activeCharacters) {
+        setCurrentTurnCharacter(char.name);
+
+        const response = await onSendMessage(
+          currentInput,
+          currentImage,
+          updatedHistory,
+          char,
+          activeCharacters,
+          scenario
+        );
+
+        if (response && response.message) {
+          const botMsg = {
+            role: 'assistant',
+            content: response.message.content,
+            sender: char.name,
+            character_id: char.id,
+            voice_preset: char.voice_preset
+          };
+          updatedHistory = [...updatedHistory, botMsg];
+          setMessages([...updatedHistory]);
+
+          // Play voice sequentially for this character if auto-speak is enabled
+          if (autoSpeakRef.current) {
+            await playAudioPromise(botMsg.content, char.voice_preset, char.name);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error during round-robin generation:', err);
+    } finally {
+      setIsGenerating(false);
+      setCurrentTurnCharacter(null);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
@@ -193,35 +302,114 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
     }
   };
 
-  if (!character) {
+  if (activeCharacters.length === 0) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
-        Select a character from the sidebar to begin chatting.
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', gap: '16px' }}>
+        <Users size={48} color="#6366f1" style={{ opacity: 0.5 }} />
+        <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>No active characters selected</div>
+        <button 
+          type="button" 
+          className="submit-btn" 
+          onClick={onOpenNewChat}
+          style={{ padding: '10px 20px', fontSize: '0.9rem' }}
+        >
+          <Sparkles size={16} /> Configure New Chat Room
+        </button>
       </div>
     );
   }
 
+  const roomTitle = activeCharacters.length > 1
+    ? activeCharacters.map((c) => c.name).join(' & ')
+    : activeCharacters[0].name;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div className="chat-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div className="avatar-circle">
-            {character.name ? character.name[0].toUpperCase() : 'C'}
+      <div className="chat-header" style={{ height: 'auto', minHeight: '70px', padding: '12px 24px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+          {/* Avatar(s) Stack */}
+          <div style={{ display: 'flex', alignItems: 'center', marginLeft: activeCharacters.length > 1 ? '4px' : 0 }}>
+            {activeCharacters.slice(0, 3).map((char, idx) => (
+              <div 
+                key={char.id} 
+                className="avatar-circle" 
+                style={{ 
+                  width: '38px', 
+                  height: '38px', 
+                  fontSize: '0.9rem',
+                  marginLeft: idx > 0 ? '-12px' : 0,
+                  border: '2px solid var(--bg-dark)',
+                  zIndex: 3 - idx
+                }}
+              >
+                {char.name ? char.name[0].toUpperCase() : 'C'}
+              </div>
+            ))}
+            {activeCharacters.length > 3 && (
+              <div 
+                className="avatar-circle" 
+                style={{ width: '38px', height: '38px', fontSize: '0.75rem', marginLeft: '-12px', background: '#374151', border: '2px solid var(--bg-dark)' }}
+              >
+                +{activeCharacters.length - 3}
+              </div>
+            )}
           </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{character.name}</div>
-            <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{character.summary || 'Roleplay Character'}</div>
+
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {roomTitle}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>{activeCharacters.length} {activeCharacters.length === 1 ? 'Participant' : 'Participants'} (Round Robin)</span>
+            </div>
           </div>
+
+          {/* Scenario Badge */}
+          {scenario && (
+            <div 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'rgba(6, 182, 212, 0.12)',
+                border: '1px solid rgba(6, 182, 212, 0.3)',
+                color: '#06b6d4',
+                padding: '4px 10px',
+                borderRadius: '16px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                maxWidth: '260px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              title={scenario.scenario_prompt}
+            >
+              <Compass size={14} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{scenario.title}</span>
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Header Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={onOpenNewChat}
+            title="Start a new chat with different characters or scenario"
+            style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+          >
+            <MessageSquarePlus size={16} /> New Chat
+          </button>
+
           {isPlayingAudio && (
             <button
               type="button"
               className="action-btn"
               onClick={stopAudio}
-              title="Stop voice audio"
+              title={`Stop voice (${activeSpeaker || 'Audio'})`}
               style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', borderColor: '#ef4444' }}
             >
               <Square size={16} />
@@ -246,50 +434,103 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
 
       {/* Messages */}
       <div className="messages-container">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`message-bubble message-${msg.role}`}>
-            {msg.imagePreview && (
-              <img 
-                src={msg.imagePreview} 
-                alt="User Upload" 
-                style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', marginBottom: '8px' }} 
-              />
-            )}
-            <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</div>
-            {msg.role === 'assistant' && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  title="Play Voice"
-                  onClick={() => speakResponse(msg.content)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#9ca3af',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '0.75rem',
-                    padding: '2px 4px',
-                    borderRadius: '4px',
-                    opacity: 0.7,
-                    transition: 'opacity 0.2s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-                >
-                  <Volume2 size={13} /> Speak
-                </button>
+        {messages.map((msg, idx) => {
+          if (msg.role === 'system') {
+            return (
+              <div 
+                key={idx} 
+                style={{
+                  alignSelf: 'center',
+                  background: 'rgba(6, 182, 212, 0.08)',
+                  border: '1px solid rgba(6, 182, 212, 0.25)',
+                  color: '#cbd5e1',
+                  padding: '10px 18px',
+                  borderRadius: '12px',
+                  fontSize: '0.85rem',
+                  fontStyle: 'italic',
+                  maxWidth: '85%',
+                  textAlign: 'center',
+                  lineHeight: 1.5
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#06b6d4', fontWeight: 600, marginBottom: '2px', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <Compass size={13} /> Scene Setting
+                </div>
+                {msg.content}
               </div>
-            )}
-          </div>
-        ))}
-        {isPlayingAudio && (
-          <div style={{ fontSize: '0.8rem', color: '#818cf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Volume2 size={16} className="recording-pulse" style={{ borderRadius: '50%' }} /> Speaking in character...
+            );
+          }
+
+          const isUser = msg.role === 'user';
+
+          return (
+            <div key={idx} className={`message-bubble message-${msg.role}`}>
+              {!isUser && msg.sender && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <div className="avatar-circle" style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>
+                    {msg.sender[0].toUpperCase()}
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#818cf8' }}>
+                    {msg.sender}
+                  </span>
+                </div>
+              )}
+
+              {msg.imagePreview && (
+                <img 
+                  src={msg.imagePreview} 
+                  alt="User Upload" 
+                  style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', marginBottom: '8px' }} 
+                />
+              )}
+
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</div>
+
+              {!isUser && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    title={`Speak in ${msg.sender || 'character'}'s voice`}
+                    onClick={() => speakSingleMessage(msg.content, msg.voice_preset, msg.sender)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#9ca3af',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '0.75rem',
+                      padding: '2px 4px',
+                      borderRadius: '4px',
+                      opacity: 0.7,
+                      transition: 'opacity 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                  >
+                    <Volume2 size={13} /> Speak
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {isGenerating && (
+          <div style={{ fontSize: '0.85rem', color: '#818cf8', display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '12px', width: 'fit-content' }}>
+            <Sparkles size={16} className="recording-pulse" style={{ borderRadius: '50%' }} />
+            {currentTurnCharacter ? `${currentTurnCharacter} is thinking...` : 'Generating room response...'}
           </div>
         )}
+
+        {isPlayingAudio && (
+          <div style={{ fontSize: '0.8rem', color: '#818cf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Volume2 size={16} className="recording-pulse" style={{ borderRadius: '50%' }} /> 
+            {activeSpeaker ? `${activeSpeaker} is speaking...` : 'Speaking in character...'}
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -329,10 +570,17 @@ export default function ChatRoom({ character, onSendMessage, onAudioRecord }) {
           value={input} 
           onChange={(e) => setInput(e.target.value)} 
           onKeyDown={handleKeyDown}
-          placeholder={`Chat with ${character.name}... (Enter to send, Shift+Enter for new line)`}
+          placeholder={`Message the room (${activeCharacters.map((c) => c.name).join(', ')})...`}
+          disabled={isGenerating}
         />
 
-        <button type="button" className="action-btn" onClick={handleSend} title="Send Message">
+        <button 
+          type="button" 
+          className="action-btn" 
+          onClick={handleSend} 
+          title="Send Message"
+          disabled={isGenerating}
+        >
           <Send size={20} />
         </button>
       </div>

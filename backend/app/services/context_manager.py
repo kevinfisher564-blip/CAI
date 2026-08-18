@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 class ContextManager:
     """
     3-Tier Context Architecture Manager:
-    Tier 1: Persona & System Instructions
+    Tier 1: Global Scenario Setting, Room Participants, & Persona Instructions
     Tier 2: Long-Term Story Summary & Vector Lorebook Recaps
     Tier 3: Recent Conversation Sliding Window (up to 32,768 tokens)
     """
@@ -16,33 +16,69 @@ class ContextManager:
         self,
         character_data: Dict[str, Any],
         conversation_history: List[Dict[str, Any]],
-        story_summary: Optional[str] = None
+        story_summary: Optional[str] = None,
+        scenario_data: Optional[Dict[str, Any]] = None,
+        room_characters: Optional[List[Dict[str, Any]]] = None
     ) -> List[Dict[str, Any]]:
         
-        system_content = []
-        system_content.append(f"Name: {character_data.get('name', 'Character')}")
-        if character_data.get('summary'):
-            system_content.append(f"Summary: {character_data.get('summary')}")
-        if character_data.get('personality'):
-            system_content.append(f"Personality: {character_data.get('personality')}")
-        if character_data.get('scenario'):
-            system_content.append(f"Scenario: {character_data.get('scenario')}")
-        if character_data.get('system_prompt'):
-            system_content.append(f"Instructions: {character_data.get('system_prompt')}")
-            
-        if story_summary:
-            system_content.append(f"\n[STORY RECAP & MILESTONES]:\n{story_summary}")
+        system_blocks = []
 
-        full_system_prompt = "\n".join(system_content)
+        # 1. Global Scenario / World Setting (Shared across all characters in the room)
+        if scenario_data:
+            scenario_title = scenario_data.get("title", "Active Scenario")
+            scenario_prompt = scenario_data.get("scenario_prompt") or scenario_data.get("summary") or ""
+            if scenario_prompt:
+                system_blocks.append(f"=== WORLD SCENARIO: {scenario_title} ===\n{scenario_prompt}")
+
+        # 2. Room Participants Awareness
+        if room_characters and len(room_characters) > 1:
+            participant_names = [c.get("name", "Character") for c in room_characters]
+            system_blocks.append(
+                f"=== ROOM PARTICIPANTS ===\nThe following individuals are present in this scene: {', '.join(participant_names)}.\n"
+                f"Stay fully in character as {character_data.get('name', 'your character')}. You can interact with both the user and other characters in the room."
+            )
+
+        # 3. Responding Character Persona & System Instructions
+        char_info = []
+        char_name = character_data.get('name', 'Character')
+        char_info.append(f"You are roleplaying as: {char_name}")
+        if character_data.get('summary'):
+            char_info.append(f"Summary: {character_data.get('summary')}")
+        if character_data.get('personality'):
+            char_info.append(f"Personality: {character_data.get('personality')}")
+        if character_data.get('scenario'):
+            # Optional individual character backstory
+            char_info.append(f"Personal Context: {character_data.get('scenario')}")
+        if character_data.get('system_prompt'):
+            char_info.append(f"Instructions: {character_data.get('system_prompt')}")
+
+        system_blocks.append(f"=== CHARACTER IDENTITY ===\n" + "\n".join(char_info))
+            
+        # 4. Story Recap & Milestones (Tier 2)
+        if story_summary:
+            system_blocks.append(f"=== STORY RECAP & MILESTONES ===\n{story_summary}")
+
+        full_system_prompt = "\n\n".join(system_blocks)
         
         messages = [
             {"role": "system", "content": full_system_prompt}
         ]
 
-        # Tier 3: Add recent sliding window messages
+        # 5. Tier 3: Add recent sliding window messages
         recent_turns = conversation_history[-self.sliding_window_turns:] if len(conversation_history) > self.sliding_window_turns else conversation_history
         for turn in recent_turns:
-            messages.append(turn)
+            # Pass turn directly (keeps role, content, multimodal structure)
+            clean_turn = {
+                "role": turn.get("role", "user"),
+                "content": turn.get("content", "")
+            }
+            # Prefix character name into content if assistant message has a sender in multi-character chat
+            if turn.get("role") == "assistant" and turn.get("sender") and not str(turn.get("content", "")).startswith(f"{turn.get('sender')}:"):
+                sender = turn.get("sender")
+                raw_content = turn.get("content")
+                if isinstance(raw_content, str):
+                    clean_turn["content"] = f"{sender}: {raw_content}"
+            messages.append(clean_turn)
 
         return messages
 
