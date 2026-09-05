@@ -158,22 +158,38 @@ def synthesize_with_omnivoice(spoken_text: str, voice_sample_path: str, voice_sa
 
         audio_res = ov.generate(**kwargs)
 
-        # Handle various output formats (Tensor, NumPy array, or tuple)
-        audio_data = audio_res
         sample_rate = 24000
-        if isinstance(audio_res, tuple) and len(audio_res) >= 2:
+        audio_data = audio_res
+
+        # OmniVoice returns a list of NumPy arrays (e.g. [np.ndarray])
+        if isinstance(audio_res, list) and len(audio_res) > 0:
+            audio_data = audio_res[0]
+        elif isinstance(audio_res, tuple) and len(audio_res) >= 2:
             audio_data, sample_rate = audio_res[0], audio_res[1]
+        elif isinstance(audio_res, dict):
+            audio_data = audio_res.get("audio") or audio_res.get("wav") or audio_res
+            sample_rate = audio_res.get("sampling_rate") or audio_res.get("sample_rate") or 24000
 
         # Convert PyTorch tensor to NumPy if necessary
         if hasattr(audio_data, "detach"):
             audio_data = audio_data.detach().cpu().numpy()
-        if hasattr(audio_data, "squeeze"):
-            audio_data = audio_data.squeeze()
 
-        sf.write(temp_path, audio_data, sample_rate)
+        audio_data = np.asarray(audio_data, dtype=np.float32)
+        audio_data = np.squeeze(audio_data)
+
+        # Remove 0-byte placeholder if present before sf.write
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+        sf.write(temp_path, audio_data, int(sample_rate), format="WAV", subtype="PCM_16")
         return os.path.exists(temp_path) and os.path.getsize(temp_path) > 100
     except Exception as e:
         print(f"OmniVoice synthesis error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def synthesize_with_f5tts(spoken_text: str, voice_sample_path: str, voice_sample_text: Optional[str], temp_path: str) -> bool:
@@ -191,7 +207,7 @@ def synthesize_with_f5tts(spoken_text: str, voice_sample_path: str, voice_sample
         if isinstance(res, tuple) and len(res) >= 2:
             wav_data, sample_rate = res[0], res[1]
             if wav_data is not None and sample_rate is not None:
-                sf.write(temp_path, wav_data, sample_rate)
+                sf.write(temp_path, wav_data, int(sample_rate), format="WAV", subtype="PCM_16")
         return os.path.exists(temp_path) and os.path.getsize(temp_path) > 100
     except Exception as e:
         print(f"F5-TTS synthesis error: {e}")
@@ -216,8 +232,10 @@ async def synthesize_speech(
 
         # 1. Zero-Shot Voice Cloning if voice_sample_path is provided and exists
         if voice_sample_path and os.path.exists(voice_sample_path):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
-                temp_path = temp_wav.name
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".wav")
+            os.close(temp_fd)
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
 
             success = False
             active_engine = TTS_ENGINE.replace("-", "_")
