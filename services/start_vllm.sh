@@ -55,35 +55,16 @@ for m in models:
 EOF
 }
 
-# Allow passing model name via argument ($1) or environment ($MODEL_NAME)
+# 1. Check if model name passed via argument ($1) or environment ($MODEL_NAME)
+SELECTED_MODEL=""
 if [ -n "$1" ]; then
     SELECTED_MODEL="$1"
 elif [ -n "$MODEL_NAME" ]; then
     SELECTED_MODEL="$MODEL_NAME"
 fi
 
+# 2. Interactive selection fallback if running standalone without arguments
 if [ -z "$SELECTED_MODEL" ]; then
-    echo "=========================================================="
-    echo " Scanning for available models in Hugging Face Cache & Workspace..."
-    echo "=========================================================="
-
-    # Read discovered models into array
-    mapfile -t AVAILABLE_MODELS < <(get_available_models)
-
-    num_models=${#AVAILABLE_MODELS[@]}
-
-    if [ "$num_models" -gt 0 ]; then
-        echo "Found the following cached / local models:"
-        for i in "${!AVAILABLE_MODELS[@]}"; do
-            echo "  [$((i + 1))] ${AVAILABLE_MODELS[$i]}"
-        done
-        echo "  [$((num_models + 1))] Enter custom path or Hugging Face model ID"
-    else
-        echo "No cached models found automatically."
-        echo "  [1] Enter custom path or Hugging Face model ID"
-    fi
-    echo "=========================================================="
-
     # Determine input stream for interactive prompt
     input_source=""
     if [ -t 0 ]; then
@@ -93,11 +74,26 @@ if [ -z "$SELECTED_MODEL" ]; then
     fi
 
     if [ -n "$input_source" ] || [ -t 0 ]; then
+        echo "=========================================================="
+        echo " Scanning for available models in Hugging Face Cache & Workspace..."
+        echo "=========================================================="
+
+        mapfile -t AVAILABLE_MODELS < <(get_available_models)
+        num_models=${#AVAILABLE_MODELS[@]}
+
         if [ "$num_models" -gt 0 ]; then
+            echo "Found the following cached / local models:"
+            for i in "${!AVAILABLE_MODELS[@]}"; do
+                echo "  [$((i + 1))] ${AVAILABLE_MODELS[$i]}"
+            done
+            echo "  [$((num_models + 1))] Enter custom path or Hugging Face model ID"
             prompt_msg="Select model [1-$((num_models + 1))] (Default: 1): "
         else
+            echo "No cached models found automatically."
+            echo "  [1] Enter custom path or Hugging Face model ID"
             prompt_msg="Enter custom model path or Hugging Face repo ID: "
         fi
+        echo "=========================================================="
 
         if [ -n "$input_source" ]; then
             read -r -p "$prompt_msg" choice < "$input_source"
@@ -120,7 +116,6 @@ if [ -z "$SELECTED_MODEL" ]; then
             fi
             SELECTED_MODEL=$(echo "$custom_input" | xargs)
         elif [ -n "$choice" ]; then
-            # User typed a direct path or model ID instead of a number
             SELECTED_MODEL="$choice"
         fi
     fi
