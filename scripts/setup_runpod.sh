@@ -28,7 +28,7 @@ pip install -r backend/requirements.txt
 pip install vllm faster-whisper f5-tts edge-tts
 
 # 3. Configure Hugging Face CLI & Token Authentication
-export HF_HOME="    "
+export HF_HOME="/workspace/huggingface-cache"
 mkdir -p ${HF_HOME}
 
 echo "=========================================================="

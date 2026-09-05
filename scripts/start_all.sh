@@ -58,7 +58,7 @@ elif [ -n "$MODEL_NAME" ]; then
 fi
 
 if [ -z "$SELECTED_MODEL" ]; then
-    echo " Scanning for available models in Hugging Face Cache & Workspace..."
+    echo " Scanning for available LLM models in Hugging Face Cache & Workspace..."
     echo "----------------------------------------------------------"
 
     # Read discovered models into array

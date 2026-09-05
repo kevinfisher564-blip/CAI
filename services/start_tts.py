@@ -99,6 +99,26 @@ async def synthesize_speech(
         if not spoken_text:
             spoken_text = "..."
 
+        # 1. Zero-Shot Voice Cloning if voice_sample_path is provided and exists
+        if voice_sample_path and os.path.exists(voice_sample_path):
+            try:
+                from f5_tts.api import F5TTS
+                f5tts = F5TTS()
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
+                    temp_path = temp_wav.name
+                f5tts.infer(
+                    ref_file=voice_sample_path,
+                    ref_text="",
+                    gen_text=spoken_text,
+                    file_wave=temp_path
+                )
+                return FileResponse(temp_path, media_type="audio/wav", filename="cloned_response.wav")
+            except ImportError:
+                print(f"Voice reference provided ({voice_sample_path}), f5_tts not installed. Using preset '{voice_preset}'.")
+            except Exception as e:
+                print(f"Zero-shot cloning note: {e}. Using preset '{voice_preset}'.")
+
+        # 2. Preset Neural Voice Synthesis
         backend = ensure_tts_backend()
 
         if backend == "edge_tts":

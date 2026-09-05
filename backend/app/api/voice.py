@@ -33,6 +33,9 @@ async def speech_to_text(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CHARACTERS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "characters"))
+
 @router.post("/tts")
 async def text_to_speech(
     text: str = Form(...),
@@ -45,7 +48,14 @@ async def text_to_speech(
     try:
         data = {"text": text, "voice_preset": voice_preset}
         if voice_sample_path:
-            data["voice_sample_path"] = voice_sample_path
+            resolved_path = voice_sample_path
+            if not os.path.isabs(voice_sample_path):
+                sample_candidate = os.path.join(CHARACTERS_DIR, "voice_samples", voice_sample_path)
+                if os.path.exists(sample_candidate):
+                    resolved_path = sample_candidate
+                elif os.path.exists(os.path.join(CHARACTERS_DIR, voice_sample_path)):
+                    resolved_path = os.path.join(CHARACTERS_DIR, voice_sample_path)
+            data["voice_sample_path"] = resolved_path
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
@@ -61,3 +71,4 @@ async def text_to_speech(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

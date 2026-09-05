@@ -104,25 +104,35 @@ export default function App() {
         });
       }
 
-      if (res.ok) {
-        const savedChar = await res.json();
-
-        if (voiceFile) {
-          const voiceData = new FormData();
-          voiceData.append('file', voiceFile);
-          await fetch(`/api/characters/${savedChar.id}/voice_sample`, {
-            method: 'POST',
-            body: voiceData
-          });
-        }
-
-        await fetchCharacters();
-        setSelectedCharId(savedChar.id);
-        setActiveCharacters([savedChar]);
-        setViewMode('chat');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || `Server returned error status ${res.status}`);
       }
+
+      let savedChar = await res.json();
+
+      if (voiceFile) {
+        const voiceData = new FormData();
+        voiceData.append('file', voiceFile);
+        const voiceRes = await fetch(`/api/characters/${savedChar.id}/voice_sample`, {
+          method: 'POST',
+          body: voiceData
+        });
+        if (voiceRes.ok) {
+          const vData = await voiceRes.json();
+          savedChar.voice_sample = vData.voice_sample;
+        } else {
+          console.error('Failed to upload voice sample:', await voiceRes.text());
+        }
+      }
+
+      await fetchCharacters();
+      setSelectedCharId(savedChar.id);
+      setActiveCharacters([savedChar]);
+      setViewMode('chat');
     } catch (err) {
       console.error('Error saving character:', err);
+      throw err;
     }
   };
 

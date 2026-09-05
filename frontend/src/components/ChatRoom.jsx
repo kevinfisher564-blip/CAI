@@ -66,6 +66,7 @@ export default function ChatRoom({
         sender: char.name,
         character_id: char.id,
         voice_preset: char.voice_preset,
+        voice_sample: char.voice_sample,
         isInitialGreeting: true
       });
     });
@@ -139,7 +140,7 @@ export default function ChatRoom({
   };
 
   // Sequential audio playback helper
-  const playAudioPromise = (text, voicePreset, speakerName) => {
+  const playAudioPromise = (text, voicePreset, speakerName, voiceSample) => {
     return new Promise(async (resolve) => {
       if (!autoSpeakRef.current) return resolve();
       stopAudio();
@@ -150,6 +151,9 @@ export default function ChatRoom({
         const formData = new FormData();
         formData.append('text', text);
         formData.append('voice_preset', voicePreset || 'female_narrator');
+        if (voiceSample) {
+          formData.append('voice_sample_path', voiceSample);
+        }
 
         const res = await fetch('/api/voice/tts', {
           method: 'POST',
@@ -189,7 +193,7 @@ export default function ChatRoom({
     });
   };
 
-  const speakSingleMessage = async (text, voicePreset, speakerName) => {
+  const speakSingleMessage = async (text, voicePreset, speakerName, voiceSample) => {
     stopAudio();
     setIsPlayingAudio(true);
     setActiveSpeaker(speakerName);
@@ -197,6 +201,9 @@ export default function ChatRoom({
       const formData = new FormData();
       formData.append('text', text);
       formData.append('voice_preset', voicePreset || 'female_narrator');
+      if (voiceSample) {
+        formData.append('voice_sample_path', voiceSample);
+      }
 
       const res = await fetch('/api/voice/tts', {
         method: 'POST',
@@ -274,14 +281,15 @@ export default function ChatRoom({
             content: response.message.content,
             sender: char.name,
             character_id: char.id,
-            voice_preset: char.voice_preset
+            voice_preset: char.voice_preset,
+            voice_sample: char.voice_sample
           };
           updatedHistory = [...updatedHistory, botMsg];
           setMessages([...updatedHistory]);
 
           // Play voice sequentially for this character if auto-speak is enabled
           if (autoSpeakRef.current) {
-            await playAudioPromise(botMsg.content, char.voice_preset, char.name);
+            await playAudioPromise(botMsg.content, char.voice_preset, char.name, char.voice_sample);
           }
         }
       }
@@ -550,7 +558,7 @@ export default function ChatRoom({
                   <button
                     type="button"
                     title={`Speak in ${msg.sender || 'character'}'s voice`}
-                    onClick={() => speakSingleMessage(msg.content, msg.voice_preset, msg.sender)}
+                    onClick={() => speakSingleMessage(msg.content, msg.voice_preset, msg.sender, msg.voice_sample)}
                     style={{
                       background: 'transparent',
                       border: 'none',

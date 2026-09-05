@@ -24,6 +24,7 @@ export default function CharacterEditor({ character, onSave }) {
     repetition_penalty: 1.05,
     max_tokens: 1024,
     voice_preset: 'female_narrator',
+    voice_sample: null,
     character_book: null,
     extensions: {}
   });
@@ -39,6 +40,7 @@ export default function CharacterEditor({ character, onSave }) {
   useEffect(() => {
     setValidationError(null);
     setValidationSuccess(null);
+    setVoiceFile(null);
     if (character) {
       const desc = character.description || character.summary || '';
       const extensions = character.extensions || {};
@@ -70,6 +72,7 @@ export default function CharacterEditor({ character, onSave }) {
         repetition_penalty: Number(repPen),
         max_tokens: Number(maxTok),
         voice_preset: character.voice_preset || 'female_narrator',
+        voice_sample: character.voice_sample || null,
         character_book: character.character_book || null,
         extensions: extensions
       });
@@ -95,6 +98,7 @@ export default function CharacterEditor({ character, onSave }) {
         repetition_penalty: 1.05,
         max_tokens: 1024,
         voice_preset: 'female_narrator',
+        voice_sample: null,
         character_book: null,
         extensions: {}
       });
@@ -259,6 +263,18 @@ export default function CharacterEditor({ character, onSave }) {
     };
 
     reader.readAsText(file);
+  };
+
+  const handleRemoveVoiceSample = async () => {
+    if (character?.id && formData.voice_sample) {
+      try {
+        await fetch(`/api/characters/${character.id}/voice_sample`, { method: 'DELETE' });
+      } catch (err) {
+        console.error('Failed to delete voice sample on server:', err);
+      }
+    }
+    setFormData((prev) => ({ ...prev, voice_sample: null }));
+    setVoiceFile(null);
   };
 
   const handleSubmit = async (e) => {
@@ -693,13 +709,95 @@ export default function CharacterEditor({ character, onSave }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Upload size={16} /> Zero-Shot Voice Reference (Optional WAV)
             </label>
+
+            {/* Currently attached voice sample on server */}
+            {formData.voice_sample && !voiceFile && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: '6px',
+                marginBottom: '8px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: 600 }}>Active Voice Sample:</span>
+                  <span style={{ fontSize: '0.75rem', color: '#e5e7eb', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    {formData.voice_sample}
+                  </span>
+                  <audio 
+                    controls 
+                    src={`/static/characters/voice_samples/${formData.voice_sample}`} 
+                    style={{ height: '26px', marginTop: '4px', maxWidth: '200px' }} 
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveVoiceSample}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    color: '#f87171',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer'
+                  }}
+                  title="Remove this voice reference"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+
+            {/* Newly selected file waiting for save */}
+            {voiceFile && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '6px',
+                marginBottom: '8px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>Selected for Upload:</span>
+                  <span style={{ fontSize: '0.75rem', color: '#e5e7eb', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    {voiceFile.name} ({(voiceFile.size / 1024).toFixed(1)} KB)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVoiceFile(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#9ca3af',
+                    fontSize: '1rem',
+                    cursor: 'pointer'
+                  }}
+                  title="Cancel file selection"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <input 
               type="file" 
-              accept="audio/*" 
+              accept="audio/*,.wav,.mp3,.ogg,.m4a" 
               className="form-input"
-              onChange={(e) => setVoiceFile(e.target.files[0])}
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setVoiceFile(e.target.files[0]);
+                }
+              }}
             />
-            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Upload a 3–10 sec audio clip to clone voice</span>
+            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Upload a 3–10 sec clean audio clip (.wav) to clone voice</span>
           </div>
         </div>
 

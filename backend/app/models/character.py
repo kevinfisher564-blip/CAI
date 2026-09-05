@@ -63,6 +63,8 @@ class CharacterCreateRequest(BaseModel):
     repetition_penalty: Optional[float] = 1.05
     max_tokens: Optional[int] = 1024
     voice_preset: Optional[str] = "female_narrator"
+    avatar: Optional[str] = None
+    voice_sample: Optional[str] = None
 
 class CharacterUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -87,3 +89,5 @@ class CharacterUpdateRequest(BaseModel):
     repetition_penalty: Optional[float] = None
     max_tokens: Optional[int] = None
     voice_preset: Optional[str] = None
+    avatar: Optional[str] = None
+    voice_sample: Optional[str] = None
