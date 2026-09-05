@@ -122,7 +122,46 @@ fi
 # Fallback default if nothing selected
 SELECTED_MODEL="${SELECTED_MODEL:-mistralai/Pixtral-12B-2409}"
 
+# 2. Select TTS Engine (OmniVoice vs F5-TTS vs Edge-TTS)
+SELECTED_TTS_ENGINE=""
+if [ -n "$2" ]; then
+    SELECTED_TTS_ENGINE="$2"
+elif [ -n "$TTS_ENGINE" ]; then
+    SELECTED_TTS_ENGINE="$TTS_ENGINE"
+fi
+
+if [ -z "$SELECTED_TTS_ENGINE" ]; then
+    if [ -n "$input_source" ] || [ -t 0 ]; then
+        echo "----------------------------------------------------------"
+        echo " Select Speech Synthesis (TTS) Engine for Audio Output:"
+        echo "  [1] OmniVoice (k2-fsa/OmniVoice - Multilingual 600+ Zero-Shot)"
+        echo "  [2] F5-TTS (SWivid/F5-TTS - Flow-Matching Zero-Shot)"
+        echo "  [3] Edge-TTS (Microsoft Neural Presets - 0 MB GPU VRAM)"
+        echo "----------------------------------------------------------"
+        tts_prompt="Select TTS Engine [1-3] (Default: 1): "
+
+        if [ -n "$input_source" ]; then
+            read -r -p "$tts_prompt" tts_choice < "$input_source"
+        else
+            read -r -p "$tts_prompt" tts_choice
+        fi
+
+        tts_choice=$(echo "$tts_choice" | xargs)
+        if [ "$tts_choice" = "2" ] || [ "$tts_choice" = "f5" ] || [ "$tts_choice" = "f5-tts" ]; then
+            SELECTED_TTS_ENGINE="f5_tts"
+        elif [ "$tts_choice" = "3" ] || [ "$tts_choice" = "edge" ] || [ "$tts_choice" = "edge-tts" ]; then
+            SELECTED_TTS_ENGINE="edge_tts"
+        else
+            SELECTED_TTS_ENGINE="omnivoice"
+        fi
+    fi
+fi
+
+SELECTED_TTS_ENGINE="${SELECTED_TTS_ENGINE:-omnivoice}"
+
 echo " Selected LLM: ${SELECTED_MODEL}"
+echo " Selected TTS: ${SELECTED_TTS_ENGINE}"
+echo " STT Engine:   Faster-Whisper (Port 8002)"
 echo "=========================================================="
 
 # Ensure previous instances and GPU allocations are cleanly stopped and freed
@@ -140,13 +179,13 @@ mkdir -p logs
 echo "[1/5] Starting vLLM Engine on Port 9001 (Model: ${SELECTED_MODEL})..."
 bash services/start_vllm.sh "${SELECTED_MODEL}" > logs/vllm.log 2>&1 &
 
-# 2. Start STT Service
+# 2. Start STT Service (Faster-Whisper)
 echo "[2/5] Starting Faster-Whisper STT Service on Port 8002..."
 python3 services/start_stt.py > logs/stt.log 2>&1 &
 
-# 3. Start TTS Service
-echo "[3/5] Starting F5-TTS / XTTSv2 Service on Port 8003..."
-python3 services/start_tts.py > logs/tts.log 2>&1 &
+# 3. Start TTS Service (OmniVoice / F5-TTS / Edge-TTS)
+echo "[3/5] Starting TTS Service on Port 8003 (Engine: ${SELECTED_TTS_ENGINE})..."
+TTS_ENGINE="${SELECTED_TTS_ENGINE}" python3 services/start_tts.py > logs/tts.log 2>&1 &
 
 # 4. Start FastAPI Backend Orchestrator
 echo "[4/5] Starting FastAPI Orchestrator on Port 8000..."

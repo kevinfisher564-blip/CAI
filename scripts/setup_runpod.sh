@@ -25,7 +25,7 @@ pip install --upgrade pip
 # Modules specifically for running the orchestrator
 pip install -r backend/requirements.txt
 # Modules for hosting the individual models
-pip install vllm faster-whisper f5-tts edge-tts
+pip install vllm faster-whisper f5-tts edge-tts omnivoice
 
 # 3. Configure Hugging Face CLI & Token Authentication
 export HF_HOME="/workspace/huggingface-cache"
@@ -50,10 +50,10 @@ echo "=========================================================="
 echo " Pre-downloading Model Weights via Hugging Face CLI"
 echo "=========================================================="
 
-#echo "[1/2] Pre-downloading Qwen2.5-VL-7B-Instruct..."
+#echo "[1/4] Pre-downloading Qwen2.5-VL-7B-Instruct..."
 #hf download Qwen/Qwen2.5-VL-7B-Instruct --cache-dir ${HF_HOME}
 
-echo "[1/2] Pre-downloading Qwen2.5-VL-7B-Instruct Abliterated..."
+echo "[1/4] Pre-downloading Qwen2.5-VL-7B-Instruct Abliterated..."
 mkdir -p /workspace/models/qwen3-vl-8b-abliterated
 hf download wangkanai/qwen3-vl-8b-instruct \
     qwen3-vl-8b-instruct-abliterated.safetensors \
@@ -70,10 +70,14 @@ hf download Qwen/Qwen3-VL-8B-Instruct \
     merges.txt \
     --local-dir /workspace/models/qwen3-vl-8b-abliterated
 
+echo "[2/4] Pre-downloading Pixtral-12B-2409..."
 hf download mistralai/Pixtral-12B-2409 --cache-dir ${HF_HOME}    
         
-echo "[2/2] Pre-downloading Faster-Whisper large-v3-turbo..."
+echo "[3/4] Pre-downloading Faster-Whisper large-v3-turbo..."
 hf download deepdml/faster-whisper-large-v3-turbo-ct2 --cache-dir ${HF_HOME}
+
+echo "[4/4] Pre-downloading OmniVoice zero-shot TTS model..."
+hf download k2-fsa/OmniVoice --cache-dir ${HF_HOME} || true
 
 echo "=========================================================="
 echo " RunPod Environment Setup Complete!"

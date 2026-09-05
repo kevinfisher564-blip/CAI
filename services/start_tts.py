@@ -10,8 +10,11 @@ from typing import Optional
 import io
 import soundfile as sf
 import numpy as np
+import re
 
-app = FastAPI(title="Zero-Shot & Preset TTS Service")
+app = FastAPI(title="Multi-Engine Zero-Shot & Preset TTS Service")
+
+TTS_ENGINE = os.getenv("TTS_ENGINE", "omnivoice").lower()
 
 PRESET_VOICES = {
     "female_narrator": "en-US-AvaNeural",
@@ -19,8 +22,6 @@ PRESET_VOICES = {
     "soft_storyteller": "en-US-JennyNeural",
     "energetic_companion": "en-US-BrianNeural"
 }
-
-import re
 
 EMOJI_PATTERN = re.compile(
     "["
@@ -47,9 +48,7 @@ def clean_text_for_tts(raw_text: str) -> str:
     """Strip emojis and normalize whitespace for natural speech synthesis."""
     if not raw_text:
         return ""
-    # Strip emojis
     cleaned = EMOJI_PATTERN.sub("", raw_text)
-    # Normalize excess whitespace
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
@@ -79,11 +78,51 @@ class TTSRequest(BaseModel):
     text: str
     voice_preset: Optional[str] = "female_narrator"
     voice_sample_path: Optional[str] = None
+    voice_sample_text: Optional[str] = None
+
+@app.get("/engine")
+def get_engine_info():
+    return {
+        "engine": TTS_ENGINE,
+        "supported_engines": ["omnivoice", "f5_tts", "edge_tts"],
+        "presets": list(PRESET_VOICES.keys())
+    }
 
 @app.get("/presets")
 def get_presets():
     return {"presets": list(PRESET_VOICES.keys())}
 
+# ---------------------------------------------------------------------------
+# 1. OmniVoice Zero-Shot Model Singleton
+# ---------------------------------------------------------------------------
+_omnivoice_instance = None
+
+def get_omnivoice_instance():
+    global _omnivoice_instance
+    if _omnivoice_instance is None:
+        try:
+            import torch
+            from omnivoice import OmniVoice
+            print("Initializing OmniVoice zero-shot voice model (k2-fsa/OmniVoice)...")
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+            _omnivoice_instance = OmniVoice.from_pretrained(
+                "k2-fsa/OmniVoice",
+                device_map=device,
+                dtype=dtype
+            )
+            print("OmniVoice model initialized successfully.")
+        except ImportError:
+            print("omnivoice package not installed. Run 'pip install omnivoice'.")
+            return None
+        except Exception as e:
+            print(f"Failed to initialize OmniVoice model: {e}")
+            return None
+    return _omnivoice_instance
+
+# ---------------------------------------------------------------------------
+# 2. F5-TTS Zero-Shot Model Singleton
+# ---------------------------------------------------------------------------
 _f5tts_instance = None
 
 def get_f5tts_instance():
@@ -91,16 +130,72 @@ def get_f5tts_instance():
     if _f5tts_instance is None:
         try:
             from f5_tts.api import F5TTS
-            print("Initializing F5-TTS zero-shot voice model...")
+            print("Initializing F5-TTS zero-shot voice model (SWivid/F5-TTS)...")
             _f5tts_instance = F5TTS()
             print("F5-TTS model initialized successfully.")
         except ImportError:
-            print("f5_tts package not installed. Preset neural voices will be used.")
+            print("f5_tts package not installed.")
             return None
         except Exception as e:
             print(f"Failed to initialize F5TTS model: {e}")
             return None
     return _f5tts_instance
+
+# ---------------------------------------------------------------------------
+# Inference Helpers
+# ---------------------------------------------------------------------------
+def synthesize_with_omnivoice(spoken_text: str, voice_sample_path: str, voice_sample_text: Optional[str], temp_path: str) -> bool:
+    ov = get_omnivoice_instance()
+    if ov is None:
+        return False
+    try:
+        kwargs = {
+            "text": spoken_text,
+            "ref_audio": voice_sample_path
+        }
+        if voice_sample_text and voice_sample_text.strip():
+            kwargs["ref_text"] = voice_sample_text.strip()
+
+        audio_res = ov.generate(**kwargs)
+
+        # Handle various output formats (Tensor, NumPy array, or tuple)
+        audio_data = audio_res
+        sample_rate = 24000
+        if isinstance(audio_res, tuple) and len(audio_res) >= 2:
+            audio_data, sample_rate = audio_res[0], audio_res[1]
+
+        # Convert PyTorch tensor to NumPy if necessary
+        if hasattr(audio_data, "detach"):
+            audio_data = audio_data.detach().cpu().numpy()
+        if hasattr(audio_data, "squeeze"):
+            audio_data = audio_data.squeeze()
+
+        sf.write(temp_path, audio_data, sample_rate)
+        return os.path.exists(temp_path) and os.path.getsize(temp_path) > 100
+    except Exception as e:
+        print(f"OmniVoice synthesis error: {e}")
+        return False
+
+def synthesize_with_f5tts(spoken_text: str, voice_sample_path: str, voice_sample_text: Optional[str], temp_path: str) -> bool:
+    f5tts = get_f5tts_instance()
+    if f5tts is None:
+        return False
+    try:
+        ref_transcript = (voice_sample_text or "").strip()
+        res = f5tts.infer(
+            ref_file=voice_sample_path,
+            ref_text=ref_transcript,
+            gen_text=spoken_text,
+            file_wave=temp_path
+        )
+        if isinstance(res, tuple) and len(res) >= 2:
+            wav_data, sample_rate = res[0], res[1]
+            if wav_data is not None and sample_rate is not None:
+                sf.write(temp_path, wav_data, sample_rate)
+        return os.path.exists(temp_path) and os.path.getsize(temp_path) > 100
+    except Exception as e:
+        print(f"F5-TTS synthesis error: {e}")
+        return False
 
 @app.post("/synthesize")
 async def synthesize_speech(
@@ -111,7 +206,8 @@ async def synthesize_speech(
 ):
     """
     Synthesize high-quality neural speech for character responses.
-    Uses F5-TTS for zero-shot voice cloning with reference audio, or edge-tts/gTTS for presets.
+    Uses OmniVoice or F5-TTS for zero-shot voice cloning with reference audio,
+    or edge-tts/gTTS for presets.
     """
     try:
         spoken_text = clean_text_for_tts(text)
@@ -120,33 +216,31 @@ async def synthesize_speech(
 
         # 1. Zero-Shot Voice Cloning if voice_sample_path is provided and exists
         if voice_sample_path and os.path.exists(voice_sample_path):
-            f5tts = get_f5tts_instance()
-            if f5tts is not None:
-                try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
-                        temp_path = temp_wav.name
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
+                temp_path = temp_wav.name
 
-                    ref_transcript = (voice_sample_text or "").strip()
-                    res = f5tts.infer(
-                        ref_file=voice_sample_path,
-                        ref_text=ref_transcript,
-                        gen_text=spoken_text,
-                        file_wave=temp_path
-                    )
-                    # If infer returned waveform array, ensure it is written to temp_path
-                    if isinstance(res, tuple) and len(res) >= 2:
-                        wav_data, sample_rate = res[0], res[1]
-                        if wav_data is not None and sample_rate is not None:
-                            sf.write(temp_path, wav_data, sample_rate)
+            success = False
+            active_engine = TTS_ENGINE.replace("-", "_")
 
-                    if os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
-                        return FileResponse(temp_path, media_type="audio/wav", filename="cloned_response.wav")
-                    else:
-                        print(f"F5-TTS produced empty audio at {temp_path}. Falling back to preset '{voice_preset}'.")
-                except Exception as e:
-                    print(f"F5-TTS inference error: {e}. Falling back to preset '{voice_preset}'.")
+            if "omni" in active_engine:
+                # Primary: OmniVoice, Secondary Fallback: F5-TTS
+                success = synthesize_with_omnivoice(spoken_text, voice_sample_path, voice_sample_text, temp_path)
+                if not success:
+                    print("OmniVoice failed or uninitialized. Falling back to F5-TTS...")
+                    success = synthesize_with_f5tts(spoken_text, voice_sample_path, voice_sample_text, temp_path)
+            elif "f5" in active_engine:
+                # Primary: F5-TTS, Secondary Fallback: OmniVoice
+                success = synthesize_with_f5tts(spoken_text, voice_sample_path, voice_sample_text, temp_path)
+                if not success:
+                    print("F5-TTS failed or uninitialized. Falling back to OmniVoice...")
+                    success = synthesize_with_omnivoice(spoken_text, voice_sample_path, voice_sample_text, temp_path)
 
-        # 2. Preset Neural Voice Synthesis
+            if success and os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
+                return FileResponse(temp_path, media_type="audio/wav", filename="cloned_response.wav")
+            else:
+                print(f"Zero-shot cloning did not produce audio. Falling back to preset '{voice_preset}'.")
+
+        # 2. Preset Neural Voice Synthesis (Edge-TTS / gTTS)
         backend = ensure_tts_backend()
 
         if backend == "edge_tts":
@@ -186,4 +280,5 @@ async def synthesize_speech(
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
+    print(f"Starting TTS Service (Configured Engine: {TTS_ENGINE})...")
     uvicorn.run(app, host="0.0.0.0", port=8003)

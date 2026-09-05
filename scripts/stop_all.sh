@@ -26,6 +26,7 @@ pkill -9 -f "backend.main:app" 2>/dev/null || true
 pkill -9 -f "uvicorn" 2>/dev/null || true
 pkill -9 -f "faster_whisper" 2>/dev/null || true
 pkill -9 -f "f5_tts" 2>/dev/null || true
+pkill -9 -f "omnivoice" 2>/dev/null || true
 pkill -9 -f "vite" 2>/dev/null || true
 
 # Kill any lingering compute processes actively holding GPU device memory
