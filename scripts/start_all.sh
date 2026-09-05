@@ -125,6 +125,14 @@ SELECTED_MODEL="${SELECTED_MODEL:-mistralai/Pixtral-12B-2409}"
 echo " Selected LLM: ${SELECTED_MODEL}"
 echo "=========================================================="
 
+# Ensure previous instances and GPU allocations are cleanly stopped and freed
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/stop_all.sh" ]; then
+    echo " Purging previous instances and reclaiming GPU VRAM before startup..."
+    bash "${SCRIPT_DIR}/stop_all.sh"
+    echo ""
+fi
+
 # Create background logs directory
 mkdir -p logs
 
