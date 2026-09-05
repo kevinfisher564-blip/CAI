@@ -84,15 +84,34 @@ class TTSRequest(BaseModel):
 def get_presets():
     return {"presets": list(PRESET_VOICES.keys())}
 
+_f5tts_instance = None
+
+def get_f5tts_instance():
+    global _f5tts_instance
+    if _f5tts_instance is None:
+        try:
+            from f5_tts.api import F5TTS
+            print("Initializing F5-TTS zero-shot voice model...")
+            _f5tts_instance = F5TTS()
+            print("F5-TTS model initialized successfully.")
+        except ImportError:
+            print("f5_tts package not installed. Preset neural voices will be used.")
+            return None
+        except Exception as e:
+            print(f"Failed to initialize F5TTS model: {e}")
+            return None
+    return _f5tts_instance
+
 @app.post("/synthesize")
 async def synthesize_speech(
     text: str = Form(...),
     voice_preset: Optional[str] = Form("female_narrator"),
-    voice_sample_path: Optional[str] = Form(None)
+    voice_sample_path: Optional[str] = Form(None),
+    voice_sample_text: Optional[str] = Form(None)
 ):
     """
     Synthesize high-quality neural speech for character responses.
-    Uses edge-tts (Microsoft Neural voices) or gTTS for natural spoken audio.
+    Uses F5-TTS for zero-shot voice cloning with reference audio, or edge-tts/gTTS for presets.
     """
     try:
         spoken_text = clean_text_for_tts(text)
@@ -101,22 +120,31 @@ async def synthesize_speech(
 
         # 1. Zero-Shot Voice Cloning if voice_sample_path is provided and exists
         if voice_sample_path and os.path.exists(voice_sample_path):
-            try:
-                from f5_tts.api import F5TTS
-                f5tts = F5TTS()
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
-                    temp_path = temp_wav.name
-                f5tts.infer(
-                    ref_file=voice_sample_path,
-                    ref_text="",
-                    gen_text=spoken_text,
-                    file_wave=temp_path
-                )
-                return FileResponse(temp_path, media_type="audio/wav", filename="cloned_response.wav")
-            except ImportError:
-                print(f"Voice reference provided ({voice_sample_path}), f5_tts not installed. Using preset '{voice_preset}'.")
-            except Exception as e:
-                print(f"Zero-shot cloning note: {e}. Using preset '{voice_preset}'.")
+            f5tts = get_f5tts_instance()
+            if f5tts is not None:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav:
+                        temp_path = temp_wav.name
+
+                    ref_transcript = (voice_sample_text or "").strip()
+                    res = f5tts.infer(
+                        ref_file=voice_sample_path,
+                        ref_text=ref_transcript,
+                        gen_text=spoken_text,
+                        file_wave=temp_path
+                    )
+                    # If infer returned waveform array, ensure it is written to temp_path
+                    if isinstance(res, tuple) and len(res) >= 2:
+                        wav_data, sample_rate = res[0], res[1]
+                        if wav_data is not None and sample_rate is not None:
+                            sf.write(temp_path, wav_data, sample_rate)
+
+                    if os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
+                        return FileResponse(temp_path, media_type="audio/wav", filename="cloned_response.wav")
+                    else:
+                        print(f"F5-TTS produced empty audio at {temp_path}. Falling back to preset '{voice_preset}'.")
+                except Exception as e:
+                    print(f"F5-TTS inference error: {e}. Falling back to preset '{voice_preset}'.")
 
         # 2. Preset Neural Voice Synthesis
         backend = ensure_tts_backend()

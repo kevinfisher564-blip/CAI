@@ -38,6 +38,7 @@ class CharacterCard(BaseModel):
     # Local runtime assets & voice settings
     avatar: Optional[str] = None
     voice_sample: Optional[str] = None
+    voice_sample_text: Optional[str] = None
     voice_preset: Optional[str] = "female_narrator"
 
 class CharacterCreateRequest(BaseModel):
@@ -65,6 +66,7 @@ class CharacterCreateRequest(BaseModel):
     voice_preset: Optional[str] = "female_narrator"
     avatar: Optional[str] = None
     voice_sample: Optional[str] = None
+    voice_sample_text: Optional[str] = None
 
 class CharacterUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -91,3 +93,4 @@ class CharacterUpdateRequest(BaseModel):
     voice_preset: Optional[str] = None
     avatar: Optional[str] = None
     voice_sample: Optional[str] = None
+    voice_sample_text: Optional[str] = None

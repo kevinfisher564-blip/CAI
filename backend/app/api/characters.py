@@ -77,7 +77,8 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
         "character_version": str(data.get("character_version") or payload.get("character_version") or "1.0").strip(),
         "extensions": extensions,
         "avatar": payload.get("avatar") or data.get("avatar"),
-        "voice_sample": payload.get("voice_sample") or data.get("voice_sample")
+        "voice_sample": payload.get("voice_sample") or data.get("voice_sample"),
+        "voice_sample_text": str(data.get("voice_sample_text") or payload.get("voice_sample_text") or "").strip() or None
     }
     if char_id:
         card_kwargs["id"] = str(char_id)
@@ -172,6 +173,9 @@ def create_character(req: CharacterCreateRequest):
         tags=req.tags or [],
         creator=req.creator or "User",
         character_version=req.character_version or "1.0",
+        avatar=req.avatar,
+        voice_sample=req.voice_sample,
+        voice_sample_text=req.voice_sample_text,
         extensions=req.extensions or {}
     )
     filepath = os.path.join(CHARACTERS_DIR, f"{card.id}.json")
@@ -205,7 +209,11 @@ def update_character(card_id: str, req: CharacterUpdateRequest):
     return card
 
 @router.post("/{card_id}/voice_sample")
-async def upload_voice_sample(card_id: str, file: UploadFile = File(...)):
+async def upload_voice_sample(
+    card_id: str, 
+    file: UploadFile = File(...),
+    voice_sample_text: Optional[str] = Form(None)
+):
     filepath = find_character_filepath(card_id)
     if not filepath or not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Character not found")
@@ -222,11 +230,13 @@ async def upload_voice_sample(card_id: str, file: UploadFile = File(...)):
         
     card = parse_character_data(raw_data, file_id=os.path.splitext(os.path.basename(filepath))[0])
     card.voice_sample = sample_filename
+    if voice_sample_text is not None:
+        card.voice_sample_text = voice_sample_text.strip() or None
     
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
         
-    return {"status": "success", "voice_sample": sample_filename}
+    return {"status": "success", "voice_sample": sample_filename, "voice_sample_text": card.voice_sample_text}
 
 @router.delete("/{card_id}/voice_sample")
 async def delete_voice_sample(card_id: str):
@@ -240,6 +250,7 @@ async def delete_voice_sample(card_id: str):
     card = parse_character_data(raw_data, file_id=os.path.splitext(os.path.basename(filepath))[0])
     old_sample = card.voice_sample
     card.voice_sample = None
+    card.voice_sample_text = None
     
     if old_sample:
         old_path = os.path.join(CHARACTERS_DIR, "voice_samples", old_sample)
@@ -252,6 +263,6 @@ async def delete_voice_sample(card_id: str):
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
         
-    return {"status": "success", "voice_sample": None}
+    return {"status": "success", "voice_sample": None, "voice_sample_text": None}
 
 

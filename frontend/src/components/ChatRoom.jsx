@@ -67,6 +67,7 @@ export default function ChatRoom({
         character_id: char.id,
         voice_preset: char.voice_preset,
         voice_sample: char.voice_sample,
+        voice_sample_text: char.voice_sample_text,
         isInitialGreeting: true
       });
     });
@@ -140,7 +141,7 @@ export default function ChatRoom({
   };
 
   // Sequential audio playback helper
-  const playAudioPromise = (text, voicePreset, speakerName, voiceSample) => {
+  const playAudioPromise = (text, voicePreset, speakerName, voiceSample, voiceSampleText) => {
     return new Promise(async (resolve) => {
       if (!autoSpeakRef.current) return resolve();
       stopAudio();
@@ -154,6 +155,9 @@ export default function ChatRoom({
         if (voiceSample) {
           formData.append('voice_sample_path', voiceSample);
         }
+        if (voiceSampleText) {
+          formData.append('voice_sample_text', voiceSampleText);
+        }
 
         const res = await fetch('/api/voice/tts', {
           method: 'POST',
@@ -161,29 +165,35 @@ export default function ChatRoom({
         });
 
         if (res.ok) {
-          const blob = await res.blob();
-          const audioUrl = URL.createObjectURL(blob);
-          const audio = new Audio(audioUrl);
-          currentAudioRef.current = audio;
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('audio') || contentType.includes('octet-stream')) {
+            const blob = await res.blob();
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            currentAudioRef.current = audio;
 
-          audio.onended = () => {
-            setIsPlayingAudio(false);
-            setActiveSpeaker(null);
-            currentAudioRef.current = null;
-            resolve();
-          };
-          audio.onerror = () => {
-            setIsPlayingAudio(false);
-            setActiveSpeaker(null);
-            currentAudioRef.current = null;
-            resolve();
-          };
-          await audio.play();
-        } else {
-          setIsPlayingAudio(false);
-          setActiveSpeaker(null);
-          resolve();
+            audio.onended = () => {
+              setIsPlayingAudio(false);
+              setActiveSpeaker(null);
+              currentAudioRef.current = null;
+              resolve();
+            };
+            audio.onerror = (e) => {
+              console.error('Audio playback error on HTML Audio element:', e);
+              setIsPlayingAudio(false);
+              setActiveSpeaker(null);
+              currentAudioRef.current = null;
+              resolve();
+            };
+            await audio.play();
+            return;
+          } else {
+            console.warn('TTS returned non-audio content-type:', contentType);
+          }
         }
+        setIsPlayingAudio(false);
+        setActiveSpeaker(null);
+        resolve();
       } catch (err) {
         console.error('Audio playback error:', err);
         setIsPlayingAudio(false);
@@ -193,7 +203,7 @@ export default function ChatRoom({
     });
   };
 
-  const speakSingleMessage = async (text, voicePreset, speakerName, voiceSample) => {
+  const speakSingleMessage = async (text, voicePreset, speakerName, voiceSample, voiceSampleText) => {
     stopAudio();
     setIsPlayingAudio(true);
     setActiveSpeaker(speakerName);
@@ -204,6 +214,9 @@ export default function ChatRoom({
       if (voiceSample) {
         formData.append('voice_sample_path', voiceSample);
       }
+      if (voiceSampleText) {
+        formData.append('voice_sample_text', voiceSampleText);
+      }
 
       const res = await fetch('/api/voice/tts', {
         method: 'POST',
@@ -211,28 +224,34 @@ export default function ChatRoom({
       });
 
       if (res.ok) {
-        const blob = await res.blob();
-        const audioUrl = URL.createObjectURL(blob);
-        const audio = new Audio(audioUrl);
-        currentAudioRef.current = audio;
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('audio') || contentType.includes('octet-stream')) {
+          const blob = await res.blob();
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          currentAudioRef.current = audio;
 
-        audio.onended = () => {
-          setIsPlayingAudio(false);
-          setActiveSpeaker(null);
-          currentAudioRef.current = null;
-        };
-        audio.onerror = () => {
-          setIsPlayingAudio(false);
-          setActiveSpeaker(null);
-          currentAudioRef.current = null;
-        };
-        await audio.play();
-      } else {
-        setIsPlayingAudio(false);
-        setActiveSpeaker(null);
+          audio.onended = () => {
+            setIsPlayingAudio(false);
+            setActiveSpeaker(null);
+            currentAudioRef.current = null;
+          };
+          audio.onerror = (e) => {
+            console.error('Audio playback error on HTML Audio element:', e);
+            setIsPlayingAudio(false);
+            setActiveSpeaker(null);
+            currentAudioRef.current = null;
+          };
+          await audio.play();
+          return;
+        } else {
+          console.warn('TTS returned non-audio content-type:', contentType);
+        }
       }
+      setIsPlayingAudio(false);
+      setActiveSpeaker(null);
     } catch (err) {
-      console.error('Audio playback error:', err);
+      console.error('TTS speak error:', err);
       setIsPlayingAudio(false);
       setActiveSpeaker(null);
       currentAudioRef.current = null;
@@ -282,14 +301,15 @@ export default function ChatRoom({
             sender: char.name,
             character_id: char.id,
             voice_preset: char.voice_preset,
-            voice_sample: char.voice_sample
+            voice_sample: char.voice_sample,
+            voice_sample_text: char.voice_sample_text
           };
           updatedHistory = [...updatedHistory, botMsg];
           setMessages([...updatedHistory]);
 
           // Play voice sequentially for this character if auto-speak is enabled
           if (autoSpeakRef.current) {
-            await playAudioPromise(botMsg.content, char.voice_preset, char.name, char.voice_sample);
+            await playAudioPromise(botMsg.content, char.voice_preset, char.name, char.voice_sample, char.voice_sample_text);
           }
         }
       }
@@ -558,7 +578,7 @@ export default function ChatRoom({
                   <button
                     type="button"
                     title={`Speak in ${msg.sender || 'character'}'s voice`}
-                    onClick={() => speakSingleMessage(msg.content, msg.voice_preset, msg.sender, msg.voice_sample)}
+                    onClick={() => speakSingleMessage(msg.content, msg.voice_preset, msg.sender, msg.voice_sample, msg.voice_sample_text)}
                     style={{
                       background: 'transparent',
                       border: 'none',

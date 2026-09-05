@@ -25,6 +25,7 @@ export default function CharacterEditor({ character, onSave }) {
     max_tokens: 1024,
     voice_preset: 'female_narrator',
     voice_sample: null,
+    voice_sample_text: '',
     character_book: null,
     extensions: {}
   });
@@ -73,6 +74,7 @@ export default function CharacterEditor({ character, onSave }) {
         max_tokens: Number(maxTok),
         voice_preset: character.voice_preset || 'female_narrator',
         voice_sample: character.voice_sample || null,
+        voice_sample_text: character.voice_sample_text || '',
         character_book: character.character_book || null,
         extensions: extensions
       });
@@ -99,6 +101,7 @@ export default function CharacterEditor({ character, onSave }) {
         max_tokens: 1024,
         voice_preset: 'female_narrator',
         voice_sample: null,
+        voice_sample_text: '',
         character_book: null,
         extensions: {}
       });
@@ -242,6 +245,8 @@ export default function CharacterEditor({ character, onSave }) {
           repetition_penalty: validated.repetition_penalty ?? 1.05,
           max_tokens: validated.max_tokens ?? 1024,
           voice_preset: validated.voice_preset,
+          voice_sample: validated.voice_sample || null,
+          voice_sample_text: validated.voice_sample_text || '',
           character_book: validated.character_book,
           extensions: validated.extensions
         });
@@ -273,7 +278,7 @@ export default function CharacterEditor({ character, onSave }) {
         console.error('Failed to delete voice sample on server:', err);
       }
     }
-    setFormData((prev) => ({ ...prev, voice_sample: null }));
+    setFormData((prev) => ({ ...prev, voice_sample: null, voice_sample_text: '' }));
     setVoiceFile(null);
   };
 
@@ -798,6 +803,25 @@ export default function CharacterEditor({ character, onSave }) {
               }}
             />
             <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Upload a 3–10 sec clean audio clip (.wav) to clone voice</span>
+
+            {/* Voice Reference Audio Transcript */}
+            <div style={{ marginTop: '10px' }}>
+              <label style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '4px', display: 'block' }}>
+                Voice Reference Transcript (Optional)
+              </label>
+              <textarea
+                name="voice_sample_text"
+                className="form-textarea"
+                rows={2}
+                value={formData.voice_sample_text || ''}
+                onChange={handleChange}
+                placeholder="Enter the exact spoken words in the audio clip..."
+                style={{ fontSize: '0.8rem', resize: 'vertical' }}
+              />
+              <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
+                Providing the exact transcript speeds up F5-TTS generation and prevents Whisper transcription errors.
+              </span>
+            </div>
           </div>
         </div>
 

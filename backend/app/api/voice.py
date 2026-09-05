@@ -40,13 +40,16 @@ CHARACTERS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "characters"))
 async def text_to_speech(
     text: str = Form(...),
     voice_preset: Optional[str] = Form("female_narrator"),
-    voice_sample_path: Optional[str] = Form(None)
+    voice_sample_path: Optional[str] = Form(None),
+    voice_sample_text: Optional[str] = Form(None)
 ):
     """
     Synthesize character voice response via TTS engine.
     """
     try:
         data = {"text": text, "voice_preset": voice_preset}
+        if voice_sample_text:
+            data["voice_sample_text"] = voice_sample_text
         if voice_sample_path:
             resolved_path = voice_sample_path
             if not os.path.isabs(voice_sample_path):
@@ -57,18 +60,21 @@ async def text_to_speech(
                     resolved_path = os.path.join(CHARACTERS_DIR, voice_sample_path)
             data["voice_sample_path"] = resolved_path
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             try:
                 res = await client.post(TTS_SERVICE_URL, data=data)
                 if res.status_code == 200:
-                    media_type = res.headers.get("content-type", "audio/mpeg")
+                    media_type = res.headers.get("content-type", "audio/wav")
                     return Response(content=res.content, media_type=media_type)
+                else:
+                    print(f"TTS service returned error: {res.status_code} {res.text}")
             except Exception as e:
-                print(f"TTS engine note: {e}")
+                print(f"TTS engine error / timeout: {e}")
 
-        # Fallback response for dev mode
-        return {"status": "tts_pending", "text": text, "preset": voice_preset}
+        raise HTTPException(status_code=502, detail="TTS synthesis failed or timed out.")
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

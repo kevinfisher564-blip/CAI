@@ -114,6 +114,9 @@ export default function App() {
       if (voiceFile) {
         const voiceData = new FormData();
         voiceData.append('file', voiceFile);
+        if (formData.voice_sample_text) {
+          voiceData.append('voice_sample_text', formData.voice_sample_text);
+        }
         const voiceRes = await fetch(`/api/characters/${savedChar.id}/voice_sample`, {
           method: 'POST',
           body: voiceData
@@ -121,6 +124,7 @@ export default function App() {
         if (voiceRes.ok) {
           const vData = await voiceRes.json();
           savedChar.voice_sample = vData.voice_sample;
+          savedChar.voice_sample_text = vData.voice_sample_text;
         } else {
           console.error('Failed to upload voice sample:', await voiceRes.text());
         }
