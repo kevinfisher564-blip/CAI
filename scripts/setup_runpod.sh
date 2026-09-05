@@ -22,10 +22,7 @@ apt-get update && apt-get install -y \
 
 # 2. Set up Python Environment & Install Dependencies
 pip install --upgrade pip
-# Modules specifically for running the orchestrator
 pip install -r backend/requirements.txt
-# Modules for hosting the individual models
-pip install vllm faster-whisper f5-tts edge-tts omnivoice
 
 # 3. Configure Hugging Face CLI & Token Authentication
 export HF_HOME="/workspace/huggingface-cache"

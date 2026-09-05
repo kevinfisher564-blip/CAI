@@ -278,6 +278,10 @@ export default function CharacterEditor({ character, onSave }) {
         console.error('Failed to delete voice sample on server:', err);
       }
     }
+    if (character) {
+      character.voice_sample = null;
+      character.voice_sample_text = '';
+    }
     setFormData((prev) => ({ ...prev, voice_sample: null, voice_sample_text: '' }));
     setVoiceFile(null);
   };
@@ -734,7 +738,7 @@ export default function CharacterEditor({ character, onSave }) {
                   </span>
                   <audio 
                     controls 
-                    src={`/static/characters/voice_samples/${formData.voice_sample}`} 
+                    src={`/static/characters/voice_samples/${formData.voice_sample}?t=${encodeURIComponent(formData.voice_sample)}`} 
                     style={{ height: '26px', marginTop: '4px', maxWidth: '200px' }} 
                   />
                 </div>

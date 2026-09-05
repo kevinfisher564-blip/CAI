@@ -132,6 +132,7 @@ export default function App() {
 
       await fetchCharacters();
       setSelectedCharId(savedChar.id);
+      setEditingCharacter(savedChar);
       setActiveCharacters([savedChar]);
       setViewMode('chat');
     } catch (err) {

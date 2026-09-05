@@ -1,6 +1,7 @@
 import os
 import json
 import shutil
+import time
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import List, Optional, Dict, Any
 from app.models.character import CharacterCard, CharacterCreateRequest, CharacterUpdateRequest
@@ -200,8 +201,7 @@ def update_character(card_id: str, req: CharacterUpdateRequest):
         update_data["description"] = update_data["summary"]
 
     for key, value in update_data.items():
-        if value is not None:
-            setattr(card, key, value)
+        setattr(card, key, value)
             
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
@@ -218,17 +218,37 @@ async def upload_voice_sample(
     if not filepath or not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Character not found")
         
-    os.makedirs(os.path.join(CHARACTERS_DIR, "voice_samples"), exist_ok=True)
-    sample_filename = f"{card_id}_voice{os.path.splitext(file.filename)[1]}"
-    sample_path = os.path.join(CHARACTERS_DIR, "voice_samples", sample_filename)
+    voice_dir = os.path.join(CHARACTERS_DIR, "voice_samples")
+    os.makedirs(voice_dir, exist_ok=True)
+    
+    with open(filepath, "r", encoding="utf-8") as f:
+        raw_data = json.load(f)
+    card = parse_character_data(raw_data, file_id=os.path.splitext(os.path.basename(filepath))[0])
+    
+    # Remove previous voice sample file if present
+    if card.voice_sample:
+        old_sample_path = os.path.join(voice_dir, card.voice_sample)
+        if os.path.exists(old_sample_path):
+            try:
+                os.remove(old_sample_path)
+            except Exception:
+                pass
+
+    # Clean up any lingering files for this character ID
+    for existing_file in os.listdir(voice_dir):
+        if existing_file.startswith(f"{card_id}_voice"):
+            try:
+                os.remove(os.path.join(voice_dir, existing_file))
+            except Exception:
+                pass
+                
+    ext = os.path.splitext(file.filename)[1] or ".wav"
+    sample_filename = f"{card_id}_voice_{int(time.time())}{ext}"
+    sample_path = os.path.join(voice_dir, sample_filename)
     
     with open(sample_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    with open(filepath, "r", encoding="utf-8") as f:
-        raw_data = json.load(f)
-        
-    card = parse_character_data(raw_data, file_id=os.path.splitext(os.path.basename(filepath))[0])
     card.voice_sample = sample_filename
     if voice_sample_text is not None:
         card.voice_sample_text = voice_sample_text.strip() or None
@@ -244,6 +264,7 @@ async def delete_voice_sample(card_id: str):
     if not filepath or not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Character not found")
         
+    voice_dir = os.path.join(CHARACTERS_DIR, "voice_samples")
     with open(filepath, "r", encoding="utf-8") as f:
         raw_data = json.load(f)
         
@@ -252,13 +273,21 @@ async def delete_voice_sample(card_id: str):
     card.voice_sample = None
     card.voice_sample_text = None
     
-    if old_sample:
-        old_path = os.path.join(CHARACTERS_DIR, "voice_samples", old_sample)
+    if old_sample and os.path.exists(voice_dir):
+        old_path = os.path.join(voice_dir, old_sample)
         if os.path.exists(old_path):
             try:
                 os.remove(old_path)
             except Exception:
                 pass
+                
+    if os.path.exists(voice_dir):
+        for existing_file in os.listdir(voice_dir):
+            if existing_file.startswith(f"{card_id}_voice"):
+                try:
+                    os.remove(os.path.join(voice_dir, existing_file))
+                except Exception:
+                    pass
                 
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
