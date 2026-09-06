@@ -91,13 +91,24 @@ class ContextManager:
         if story_summary:
             system_blocks.append(f"=== STORY RECAP & MILESTONES ===\n{story_summary}")
 
+        # 6. Spoken Dialogue Rules (Pure Dialogue Directives)
+        system_blocks.append(
+            f"=== OUTPUT FORMAT RULES (PURE DIALOGUE ONLY) ===\n"
+            f"- Roleplay medium: Direct live spoken conversation.\n"
+            f"- Generate ONLY spoken dialogue in first-person as {char_name}.\n"
+            f"- STRICTLY PROHIBITED: Do not write narrative prose, scene descriptions, body language, facial expressions, inner thoughts, or stage directions.\n"
+            f"- Do NOT use asterisks (*...*), brackets ([...]), or parentheses ((...)) for actions or expressions.\n"
+            f"- Do NOT refer to yourself in the third person or prefix your lines with '{char_name}:' or '{{char}}:'.\n"
+            f"- Output the exact spoken words directly, as if speaking aloud into a microphone."
+        )
+
         full_system_prompt = "\n\n".join(system_blocks)
         
         messages = [
             {"role": "system", "content": full_system_prompt}
         ]
 
-        # 6. Tier 3: Add recent sliding window messages
+        # 7. Tier 3: Add recent sliding window messages
         recent_turns = conversation_history[-self.sliding_window_turns:] if len(conversation_history) > self.sliding_window_turns else conversation_history
         for turn in recent_turns:
             clean_turn = {
@@ -111,15 +122,18 @@ class ContextManager:
                     clean_turn["content"] = f"{sender}: {raw_content}"
             messages.append(clean_turn)
 
-        # 7. Post-History Instructions (UJB / Jailbreak) - Appended after history
+        # 8. Post-History Instructions (UJB / Jailbreak) - Appended after history
+        dialogue_reminder = f"Generate ONLY direct spoken dialogue as {char_name}. No actions, no asterisks, no narrative prose."
         if character_data.get('post_history_instructions'):
             ujb_text = self.replace_macros(
                 character_data.get('post_history_instructions'),
                 char_name,
                 user_name,
-                original_fallback="Ensure the response remains detailed, immersive, and formatted properly in-character."
+                original_fallback="Ensure the response remains concise and formatted properly in-character."
             )
-            messages.append({"role": "system", "content": f"[POST-HISTORY DIRECTIVE]:\n{ujb_text}"})
+            messages.append({"role": "system", "content": f"[POST-HISTORY DIRECTIVE]:\n{ujb_text}\n{dialogue_reminder}"})
+        else:
+            messages.append({"role": "system", "content": f"[DIRECTIVE]:\n{dialogue_reminder}"})
 
         return messages
 

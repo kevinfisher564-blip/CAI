@@ -5,6 +5,13 @@ import time
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import List, Optional, Dict, Any
 from app.models.character import CharacterCard, CharacterCreateRequest, CharacterUpdateRequest
+from app.config import (
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
+    DEFAULT_MIN_P,
+    DEFAULT_REPETITION_PENALTY,
+    DEFAULT_MAX_TOKENS,
+)
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
@@ -44,11 +51,11 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
     character_book = data.get("character_book") if isinstance(data.get("character_book"), dict) else (payload.get("character_book") if isinstance(payload.get("character_book"), dict) else None)
 
     # Sampling parameters extraction (support top-level or nested under extensions)
-    temperature = data.get("temperature") if data.get("temperature") is not None else (payload.get("temperature") if payload.get("temperature") is not None else extensions.get("temperature", 0.7))
-    top_p = data.get("top_p") if data.get("top_p") is not None else (payload.get("top_p") if payload.get("top_p") is not None else extensions.get("top_p", 0.9))
-    min_p = data.get("min_p") if data.get("min_p") is not None else (payload.get("min_p") if payload.get("min_p") is not None else extensions.get("min_p", 0.0))
-    repetition_penalty = data.get("repetition_penalty") if data.get("repetition_penalty") is not None else (payload.get("repetition_penalty") if payload.get("repetition_penalty") is not None else extensions.get("repetition_penalty", 1.05))
-    max_tokens = data.get("max_tokens") or data.get("max_response_tokens") or payload.get("max_tokens") or payload.get("max_response_tokens") or extensions.get("max_tokens") or extensions.get("max_response_tokens") or 1024
+    temperature = data.get("temperature") if data.get("temperature") is not None else (payload.get("temperature") if payload.get("temperature") is not None else extensions.get("temperature", DEFAULT_TEMPERATURE))
+    top_p = data.get("top_p") if data.get("top_p") is not None else (payload.get("top_p") if payload.get("top_p") is not None else extensions.get("top_p", DEFAULT_TOP_P))
+    min_p = data.get("min_p") if data.get("min_p") is not None else (payload.get("min_p") if payload.get("min_p") is not None else extensions.get("min_p", DEFAULT_MIN_P))
+    repetition_penalty = data.get("repetition_penalty") if data.get("repetition_penalty") is not None else (payload.get("repetition_penalty") if payload.get("repetition_penalty") is not None else extensions.get("repetition_penalty", DEFAULT_REPETITION_PENALTY))
+    max_tokens = data.get("max_tokens") or data.get("max_response_tokens") or payload.get("max_tokens") or payload.get("max_response_tokens") or extensions.get("max_tokens") or extensions.get("max_response_tokens") or DEFAULT_MAX_TOKENS
 
     char_id = payload.get("id") or data.get("id") or file_id
 

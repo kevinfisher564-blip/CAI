@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import uuid
+from app.config import (
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
+    DEFAULT_MIN_P,
+    DEFAULT_REPETITION_PENALTY,
+    DEFAULT_MAX_TOKENS,
+)
 
 class CharacterCard(BaseModel):
     # Spec V2 Identifiers
@@ -29,11 +36,11 @@ class CharacterCard(BaseModel):
     extensions: Dict[str, Any] = Field(default_factory=dict)
 
     # Per-character Model Sampling Hyperparameters
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 0.9
-    min_p: Optional[float] = 0.0
-    repetition_penalty: Optional[float] = 1.05
-    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = DEFAULT_TEMPERATURE
+    top_p: Optional[float] = DEFAULT_TOP_P
+    min_p: Optional[float] = DEFAULT_MIN_P
+    repetition_penalty: Optional[float] = DEFAULT_REPETITION_PENALTY
+    max_tokens: Optional[int] = DEFAULT_MAX_TOKENS
 
     # Local runtime assets & voice settings
     avatar: Optional[str] = None

@@ -1,6 +1,71 @@
 import os
+import re
 import httpx
 from typing import List, Dict, Any, Optional
+from app.config import (
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
+    DEFAULT_MIN_P,
+    DEFAULT_REPETITION_PENALTY,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_VLLM_URL,
+    DEFAULT_MODEL_NAME,
+    DEFAULT_LLM_TIMEOUT,
+)
+
+def clean_to_pure_dialogue(text: Optional[str], char_name: Optional[str] = None) -> str:
+    """
+    Strips narrative prose, asterisk/parenthetical actions, stage directions,
+    and third-person attribution prefixes to return pure spoken dialogue.
+    """
+    if not text:
+        return ""
+
+    cleaned = text
+
+    # Remove text wrapped in asterisks (e.g. *smiles*, **nods**, ***actions***)
+    cleaned = re.sub(r'\*+[^*]+\*+', '', cleaned)
+
+    # Remove text wrapped in parentheses or brackets (stage directions/actions)
+    cleaned = re.sub(r'\([^)]*\)', '', cleaned)
+    cleaned = re.sub(r'\[[^\]]*\]', '', cleaned)
+
+    # If character name is provided, strip 3rd person narrative prefixes/actions
+    if char_name:
+        escaped_name = re.escape(char_name)
+        # Prefix with colon: "Alice: " or "{{char}}:"
+        cleaned = re.sub(rf'^(?:{escaped_name}|{{{{char}}}})\s*:\s*', '', cleaned, flags=re.IGNORECASE)
+        # Speech verbs: "Alice says, " / "Alice replies: "
+        cleaned = re.sub(
+            rf'^(?:{escaped_name}|{{{{char}}}})\s+(?:says|replies|shouts|whispers|speaks|mutters|exclaims|screams|laughs),?\s*',
+            '',
+            cleaned,
+            flags=re.IGNORECASE
+        )
+        # 3rd person narrative sentence starting with char name (e.g. "Alice gives you an angry stare and loudly slams the door. What do you want?")
+        cleaned = re.sub(
+            rf'^(?:{escaped_name}|{{{{char}}}})\s+[a-zA-Z0-9\s,\'\"]+?(?:\.|\n)\s*',
+            '',
+            cleaned,
+            flags=re.IGNORECASE
+        )
+
+    # Remove any generic {{char}} macro leftover in the text
+    cleaned = re.sub(r'\{\{char\}\}', char_name if char_name else '', cleaned, flags=re.IGNORECASE)
+
+    # Normalize whitespace and line breaks
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+    cleaned = re.sub(r'\n\s*\n+', '\n', cleaned).strip()
+
+    # Strip surrounding quotation marks if the entire response was wrapped in quotes
+    if (cleaned.startswith('"') and cleaned.endswith('"')) or (cleaned.startswith("'") and cleaned.endswith("'")):
+        cleaned = cleaned[1:-1].strip()
+
+    # If aggressive stripping removed everything (e.g. model ONLY produced *action*), fallback to original text without asterisks
+    if not cleaned and text:
+        cleaned = text.replace('*', '').replace('(', '').replace(')', '').strip()
+
+    return cleaned
 
 class LLMService:
     """
@@ -10,7 +75,7 @@ class LLMService:
     """
 
     def __init__(self, base_url: Optional[str] = None):
-        raw_url = base_url or os.getenv("VLLM_BASE_URL") or os.getenv("VLLM_API_URL", "http://127.0.0.1:9001")
+        raw_url = base_url or DEFAULT_VLLM_URL
         # Normalize base URL (strip trailing paths like /v1/chat/completions if provided in env)
         if "/v1" in raw_url:
             self.base_url = raw_url.split("/v1")[0].rstrip("/")
@@ -52,18 +117,18 @@ class LLMService:
             return self._cached_model_name
 
         # Fallback to configured model name or generic alias
-        return os.getenv("VLLM_MODEL_NAME", "default")
+        return DEFAULT_MODEL_NAME
 
     async def generate_chat_completion(
         self,
         messages: List[Dict[str, Any]],
-        max_tokens: int = 1024,
-        temperature: float = 0.7,
-        top_p: float = 0.9,
-        min_p: Optional[float] = None,
-        repetition_penalty: Optional[float] = None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        temperature: float = DEFAULT_TEMPERATURE,
+        top_p: float = DEFAULT_TOP_P,
+        min_p: Optional[float] = DEFAULT_MIN_P,
+        repetition_penalty: Optional[float] = DEFAULT_REPETITION_PENALTY,
         model: Optional[str] = None,
-        timeout: float = 60.0
+        timeout: float = DEFAULT_LLM_TIMEOUT
     ) -> Optional[str]:
         """
         Sends chat completion request to the OpenAI-compatible endpoint.
