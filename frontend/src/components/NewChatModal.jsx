@@ -1,28 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Compass, Users, Check, X, Sparkles, MessageSquare } from 'lucide-react';
 
 export default function NewChatModal({ 
-  scenarios, 
-  characters, 
+  scenarios = [], 
+  characters = [], 
   initialScenarioId = null, 
   initialCharIds = [], 
   isOpen, 
   onClose, 
   onStartChat 
 }) {
-  const [selectedScenarioId, setSelectedScenarioId] = useState(initialScenarioId || (scenarios.length > 0 ? scenarios[0].id : null));
-  const [selectedCharIds, setSelectedCharIds] = useState(initialCharIds.length > 0 ? initialCharIds : (characters.length > 0 ? [characters[0].id] : []));
+  const [selectedScenarioId, setSelectedScenarioId] = useState(null);
+  const [selectedCharIds, setSelectedCharIds] = useState([]);
+
+  // Synchronize selection state whenever the modal opens or props update
+  useEffect(() => {
+    if (isOpen) {
+      // Initialize scenario
+      if (initialScenarioId !== undefined && initialScenarioId !== null) {
+        setSelectedScenarioId(initialScenarioId);
+      } else if (scenarios.length > 0) {
+        setSelectedScenarioId(scenarios[0].id);
+      } else {
+        setSelectedScenarioId(null);
+      }
+
+      // Initialize character selections
+      if (initialCharIds && initialCharIds.length > 0) {
+        setSelectedCharIds(initialCharIds);
+      } else if (characters.length > 0) {
+        setSelectedCharIds([characters[0].id]);
+      } else {
+        setSelectedCharIds([]);
+      }
+    }
+  }, [isOpen, initialScenarioId, initialCharIds, scenarios, characters]);
 
   if (!isOpen) return null;
 
   const toggleCharacter = (id) => {
-    if (selectedCharIds.includes(id)) {
-      if (selectedCharIds.length > 1) {
-        setSelectedCharIds(selectedCharIds.filter((cid) => cid !== id));
+    setSelectedCharIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((cid) => cid !== id);
+      } else {
+        return [...prev, id];
       }
-    } else {
-      setSelectedCharIds([...selectedCharIds, id]);
-    }
+    });
+  };
+
+  const handleSelectAllCharacters = () => {
+    setSelectedCharIds(characters.map((c) => c.id));
+  };
+
+  const handleDeselectAllCharacters = () => {
+    setSelectedCharIds([]);
   };
 
   const handleLaunch = () => {
@@ -39,8 +70,9 @@ export default function NewChatModal({
   const selectedScenario = scenarios.find((s) => s.id === selectedScenarioId);
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card">
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        {/* Modal Header */}
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="avatar-circle" style={{ width: '36px', height: '36px', background: 'var(--accent-gradient)' }}>
@@ -61,8 +93,9 @@ export default function NewChatModal({
           </button>
         </div>
 
+        {/* Modal Body */}
         <div className="modal-body">
-          {/* 1. Scenario Selection */}
+          {/* Step 1: Scenario Selection */}
           <div style={{ marginBottom: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <Compass size={18} color="#06b6d4" />
@@ -71,10 +104,11 @@ export default function NewChatModal({
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
               <div 
                 className={`scenario-choice-card ${selectedScenarioId === null ? 'selected' : ''}`}
                 onClick={() => setSelectedScenarioId(null)}
+                style={{ cursor: 'pointer' }}
               >
                 <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#f3f4f6' }}>
                   Freeform / No Scenario
@@ -92,6 +126,7 @@ export default function NewChatModal({
                     key={sc.id}
                     className={`scenario-choice-card ${isSelected ? 'selected' : ''}`}
                     onClick={() => setSelectedScenarioId(sc.id)}
+                    style={{ cursor: 'pointer' }}
                   >
                     <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: '#f3f4f6' }}>
                       {sc.title}
@@ -113,21 +148,51 @@ export default function NewChatModal({
             )}
           </div>
 
-          {/* 2. Character Selection */}
+          {/* Step 2: Character Selection */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={18} color="#818cf8" />
                 <label style={{ fontWeight: 600, fontSize: '0.95rem', color: '#f3f4f6' }}>
                   2. Select Characters in the Room ({selectedCharIds.length} Selected)
                 </label>
               </div>
-              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                Pick 1 or multiple for multi-character round-robin chat
-              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleSelectAllCharacters}
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#818cf8',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllCharacters}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid var(--border-color)',
+                    color: '#9ca3af',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', maxHeight: '240px', overflowY: 'auto', paddingRight: '4px' }}>
               {characters.map((char) => {
                 const isSelected = selectedCharIds.includes(char.id);
                 const initial = char.name ? char.name[0].toUpperCase() : 'C';
@@ -137,22 +202,50 @@ export default function NewChatModal({
                     key={char.id}
                     className={`scenario-choice-card ${isSelected ? 'selected' : ''}`}
                     onClick={() => toggleCharacter(char.id)}
-                    style={isSelected ? { borderColor: '#6366f1', background: 'rgba(99, 102, 241, 0.15)' } : {}}
+                    style={{
+                      cursor: 'pointer',
+                      borderColor: isSelected ? '#6366f1' : 'var(--border-color)',
+                      background: isSelected ? 'rgba(99, 102, 241, 0.16)' : 'var(--bg-card)',
+                      transition: 'all 0.15s ease',
+                      userSelect: 'none'
+                    }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div className="avatar-circle" style={{ width: '32px', height: '32px', fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div 
+                        className="avatar-circle" 
+                        style={{ 
+                          width: '34px', 
+                          height: '34px', 
+                          fontSize: '0.85rem',
+                          background: isSelected ? '#6366f1' : 'rgba(255, 255, 255, 0.1)'
+                        }}
+                      >
                         {initial}
                       </div>
-                      <div style={{ overflow: 'hidden', flex: 1 }}>
+                      <div style={{ overflow: 'hidden', flex: 1, paddingRight: '16px' }}>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {char.name}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {char.summary || 'Character'}
-                        </div>
+                        {char.expertise_keywords && char.expertise_keywords.length > 0 ? (
+                          <div style={{ fontSize: '0.72rem', color: '#34d399', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {char.expertise_keywords.join(', ')}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.72rem', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {char.summary || 'Character'}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {isSelected && <div className="scenario-check" style={{ background: '#6366f1' }}><Check size={14} /></div>}
+
+                    {isSelected && (
+                      <div 
+                        className="scenario-check" 
+                        style={{ background: '#6366f1' }}
+                      >
+                        <Check size={14} color="#fff" />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -160,6 +253,7 @@ export default function NewChatModal({
           </div>
         </div>
 
+        {/* Modal Footer */}
         <div className="modal-footer">
           <button type="button" className="secondary-btn" onClick={onClose}>
             Cancel
@@ -169,7 +263,11 @@ export default function NewChatModal({
             className="submit-btn" 
             onClick={handleLaunch}
             disabled={selectedCharIds.length === 0}
-            style={{ padding: '12px 24px' }}
+            style={{ 
+              padding: '12px 24px',
+              opacity: selectedCharIds.length === 0 ? 0.5 : 1,
+              cursor: selectedCharIds.length === 0 ? 'not-allowed' : 'pointer'
+            }}
           >
             <Sparkles size={18} /> Start Chat ({selectedCharIds.length} {selectedCharIds.length === 1 ? 'Character' : 'Characters'})
           </button>

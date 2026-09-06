@@ -39,6 +39,9 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
     if voice_preset not in valid_voice_presets:
         voice_preset = "female_narrator"
 
+    extensions = data.get("extensions") if isinstance(data.get("extensions"), dict) else (payload.get("extensions") if isinstance(payload.get("extensions"), dict) else {})
+    character_book = data.get("character_book") if isinstance(data.get("character_book"), dict) else (payload.get("character_book") if isinstance(payload.get("character_book"), dict) else None)
+
     raw_tags = data.get("tags") or payload.get("tags") or []
     tags = [str(t).strip() for t in raw_tags if str(t).strip()] if isinstance(raw_tags, list) else []
 
@@ -49,9 +52,6 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
     alternate_greetings = [str(g).strip() for g in raw_alt_greetings if str(g).strip()] if isinstance(raw_alt_greetings, list) else []
 
     description = str(data.get("description") or data.get("summary") or payload.get("description") or payload.get("summary") or "").strip()
-    
-    extensions = data.get("extensions") if isinstance(data.get("extensions"), dict) else (payload.get("extensions") if isinstance(payload.get("extensions"), dict) else {})
-    character_book = data.get("character_book") if isinstance(data.get("character_book"), dict) else (payload.get("character_book") if isinstance(payload.get("character_book"), dict) else None)
 
     # Sampling parameters extraction (support top-level or nested under extensions)
     temperature = data.get("temperature") if data.get("temperature") is not None else (payload.get("temperature") if payload.get("temperature") is not None else extensions.get("temperature", DEFAULT_TEMPERATURE))
