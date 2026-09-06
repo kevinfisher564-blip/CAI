@@ -391,6 +391,7 @@ export default function ChatRoom({
 
     const userMsg = {
       role: 'user',
+      sender: 'User',
       content: input,
       imagePreview: imagePreview
     };

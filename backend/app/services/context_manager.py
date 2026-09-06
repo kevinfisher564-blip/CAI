@@ -50,7 +50,7 @@ class ContextManager:
 
         # 2. Room Participants Awareness
         if room_characters and len(room_characters) > 1:
-            participant_details = []
+            participant_details = [f"{user_name} (User / Human Conversation Partner)"]
             for c in room_characters:
                 c_name = c.get("name", "Character")
                 kws = c.get("expertise_keywords") or []
@@ -60,9 +60,11 @@ class ContextManager:
                     participant_details.append(c_name)
 
             system_blocks.append(
-                f"=== ROOM PARTICIPANTS ===\n"
-                f"The following individuals are present in this scene:\n- " + "\n- ".join(participant_details) + "\n"
-                f"Stay fully in character as {char_name}. You can talk to {user_name} or reply directly to any of the other characters in the room."
+                f"=== ROOM PARTICIPANTS & CHAT FORMAT ===\n"
+                f"The following individuals are present in this group conversation:\n- " + "\n- ".join(participant_details) + "\n\n"
+                f"- Messages in the conversation history are prefixed with the speaker's name (e.g. '{user_name}: ...' or '<CharacterName>: ...').\n"
+                f"- Pay careful attention to who asked or spoke each line.\n"
+                f"- Stay fully in character as {char_name}. Speak directly to {user_name} when addressed by {user_name}, or reply naturally to the other characters in the room."
             )
 
         # 3. Responding Character Identity & Persona (Tavern Spec V2 Tier 1)
@@ -143,10 +145,32 @@ class ContextManager:
                     messages.append({"role": "user", "content": content_str})
             else:
                 # Direct user turn
-                messages.append({
-                    "role": "user",
-                    "content": raw_content
-                })
+                if room_characters and len(room_characters) > 1:
+                    speaker_label = sender or user_name
+                    if isinstance(raw_content, str):
+                        if not raw_content.startswith(f"{speaker_label}:"):
+                            content_str = f"{speaker_label}: {raw_content}"
+                        else:
+                            content_str = raw_content
+                        messages.append({"role": "user", "content": content_str})
+                    elif isinstance(raw_content, list):
+                        updated_blocks = []
+                        for block in raw_content:
+                            if block.get("type") == "text":
+                                txt = block.get("text", "")
+                                if not txt.startswith(f"{speaker_label}:"):
+                                    txt = f"{speaker_label}: {txt}"
+                                updated_blocks.append({"type": "text", "text": txt})
+                            else:
+                                updated_blocks.append(block)
+                        messages.append({"role": "user", "content": updated_blocks})
+                    else:
+                        messages.append({"role": "user", "content": raw_content})
+                else:
+                    messages.append({
+                        "role": "user",
+                        "content": raw_content
+                    })
 
         # 8. Post-History Instructions (UJB / Jailbreak) - Appended after history
         dialogue_reminder = f"Generate ONLY direct spoken dialogue as {char_name}. No actions, no asterisks, no narrative prose."
