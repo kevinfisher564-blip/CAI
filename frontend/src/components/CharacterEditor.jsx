@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Upload, Volume2, Download, FileUp, AlertCircle, CheckCircle2, Plus, Trash2, Tag, BookOpen, User, Info, Sliders } from 'lucide-react';
+import { Save, Upload, Volume2, Download, FileUp, AlertCircle, CheckCircle2, Plus, Trash2, Tag, BookOpen, User, Info, Sliders, Sparkles } from 'lucide-react';
 import { validateAndParseCharacterJson } from '../utils/characterValidator';
 
 export default function CharacterEditor({ character, onSave }) {

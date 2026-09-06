@@ -34,7 +34,17 @@ class SpeakerSelector:
 
         return None
 
-    def calculate_topic_score(self, context_text: str, character: Dict[str, Any]) -> float:
+    STOPWORDS = {
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
+        "by", "from", "up", "about", "into", "over", "after", "is", "are", "was", "were",
+        "be", "been", "being", "have", "has", "had", "do", "does", "did", "can", "could",
+        "will", "would", "shall", "should", "may", "might", "must", "what", "which", "who",
+        "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most",
+        "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too",
+        "very", "just", "tell", "think", "know", "hello", "hi", "hey", "please", "help"
+    }
+
+    def calculate_topic_score(self, context_text: str, character: Dict[str, Any], is_latest_turn: bool = False) -> float:
         """
         Calculates topic affinity score for a character based on matching keywords from context_text.
         """
@@ -42,12 +52,14 @@ class SpeakerSelector:
             return 0.0
 
         normalized_context = context_text.lower()
-        # Tokenize context into words for boundary matching
-        words = set(re.findall(r'\b[a-zA-Z0-9_\-]{3,}\b', normalized_context))
+        # Tokenize context into words and filter out stopwords
+        raw_words = re.findall(r'\b[a-zA-Z0-9_\-]{3,}\b', normalized_context)
+        words = {w for w in raw_words if w not in self.STOPWORDS}
         
         score = 0.0
+        turn_multiplier = 2.0 if is_latest_turn else 1.0
 
-        # 1. Primary match: expertise_keywords (Weight: 3.0 per keyword hit)
+        # 1. Primary match: expertise_keywords (Weight: 5.0 per hit)
         expertise = character.get("expertise_keywords") or []
         for kw in expertise:
             if not kw:
@@ -56,24 +68,28 @@ class SpeakerSelector:
             if " " in kw_clean:
                 # Multi-word phrase check
                 if kw_clean in normalized_context:
-                    score += 4.0
+                    score += 6.0 * turn_multiplier
             else:
+                # Exact word or root/stem containment (e.g. 'fence' in 'fencing', 'physics' in 'astrophysics')
                 if kw_clean in words or kw_clean in normalized_context:
-                    score += 3.0
+                    score += 5.0 * turn_multiplier
+                elif len(kw_clean) >= 4 and any(kw_clean[:4] in w for w in words):
+                    score += 3.5 * turn_multiplier
 
-        # 2. Secondary match: tags (Weight: 1.5 per tag hit)
+        # 2. Secondary match: tags (Weight: 2.0 per hit)
         tags = character.get("tags") or []
         for tag in tags:
             tag_clean = str(tag).lower().strip()
-            if tag_clean and (tag_clean in words or tag_clean in normalized_context):
-                score += 1.5
+            if tag_clean and tag_clean not in self.STOPWORDS:
+                if tag_clean in words or tag_clean in normalized_context:
+                    score += 2.0 * turn_multiplier
 
-        # 3. Tertiary match: personality & description (Weight: 0.5 per hit)
+        # 3. Tertiary match: personality & description (Weight: 0.2 per significant content word)
         desc_and_persona = f"{character.get('description', '')} {character.get('personality', '')}".lower()
         if desc_and_persona:
             for word in words:
-                if len(word) > 3 and word in desc_and_persona:
-                    score += 0.25
+                if len(word) > 4 and word in desc_and_persona:
+                    score += 0.2 * turn_multiplier
 
         return score
 
@@ -100,33 +116,35 @@ class SpeakerSelector:
         if mentioned_char:
             return mentioned_char
 
-        # 2. Extract recent context (last 2-3 turns) for topic extraction
-        recent_contexts = []
-        for msg in messages[-3:]:
-            content = msg.get("content")
-            if isinstance(content, str):
-                recent_contexts.append(content)
-        joined_context = " ".join(recent_contexts)
-
-        # 3. Score all available candidates
+        # 2. Score candidates with high emphasis on latest user message
         scores: List[tuple[Dict[str, Any], float]] = []
         for char in room_characters:
             char_id = str(char.get("id") or "")
-            score = self.calculate_topic_score(joined_context, char)
+            
+            # Score latest message heavily
+            latest_score = self.calculate_topic_score(latest_text, char, is_latest_turn=True)
+            
+            # Score preceding 2 messages with lower weight
+            older_score = 0.0
+            if len(messages) > 1:
+                older_contexts = [str(m.get("content") or "") for m in messages[-3:-1]]
+                older_score = self.calculate_topic_score(" ".join(older_contexts), char, is_latest_turn=False)
+
+            total_score = latest_score + (older_score * 0.5)
 
             # Apply recency penalty to prevent consecutive self-replies when other candidates exist
             if last_speaker_id and char_id == str(last_speaker_id):
-                score -= 2.0
+                total_score -= 3.0
 
-            scores.append((char, score))
+            scores.append((char, total_score))
 
         # Sort descending by score
         scores.sort(key=lambda x: x[1], reverse=True)
 
-        # If top score has a distinct winner (or above negative penalty), return top character
+        # If top score has a distinct winner, return top character
         top_char, top_score = scores[0]
 
-        # If all scores are tied or 0, prioritize a character who didn't just speak
+        # If all scores are tied or non-positive, prioritize a character who didn't just speak
         if top_score <= 0 and last_speaker_id and len(room_characters) > 1:
             alternatives = [c for c in room_characters if str(c.get("id")) != str(last_speaker_id)]
             if alternatives:

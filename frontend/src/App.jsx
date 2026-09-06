@@ -250,10 +250,11 @@ export default function App() {
       ];
     }
 
+    // previousMessages already includes the user turn (and previous bot turns) from ChatRoom
     const payload = {
       character_id: respondingChar.id,
       character_card: respondingChar,
-      messages: [...previousMessages, { role: 'user', content: content }],
+      messages: previousMessages,
       scenario: scenario || undefined,
       room_characters: roomCharacters || undefined
     };
