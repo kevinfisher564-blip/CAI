@@ -367,10 +367,12 @@ export default function App() {
         {viewMode === 'chat' && (
           <ChatRoom 
             characters={activeCharacters}
+            allCharacters={characters}
             scenario={activeScenario}
             onSendMessage={handleSendMessage}
             onAudioRecord={handleAudioRecord}
             onOpenNewChat={() => setIsNewChatModalOpen(true)}
+            onUpdateActiveCharacters={setActiveCharacters}
           />
         )}
 

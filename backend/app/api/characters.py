@@ -42,6 +42,9 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
     raw_tags = data.get("tags") or payload.get("tags") or []
     tags = [str(t).strip() for t in raw_tags if str(t).strip()] if isinstance(raw_tags, list) else []
 
+    raw_keywords = data.get("expertise_keywords") or payload.get("expertise_keywords") or extensions.get("expertise_keywords") or []
+    expertise_keywords = [str(k).strip() for k in raw_keywords if str(k).strip()] if isinstance(raw_keywords, list) else []
+
     raw_alt_greetings = data.get("alternate_greetings") or payload.get("alternate_greetings") or []
     alternate_greetings = [str(g).strip() for g in raw_alt_greetings if str(g).strip()] if isinstance(raw_alt_greetings, list) else []
 
@@ -74,13 +77,14 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
         "post_history_instructions": str(data.get("post_history_instructions") or payload.get("post_history_instructions") or "").strip(),
         "alternate_greetings": alternate_greetings,
         "character_book": character_book,
-        "temperature": float(temperature) if temperature is not None else 0.7,
-        "top_p": float(top_p) if top_p is not None else 0.9,
-        "min_p": float(min_p) if min_p is not None else 0.0,
-        "repetition_penalty": float(repetition_penalty) if repetition_penalty is not None else 1.05,
-        "max_tokens": int(max_tokens) if max_tokens is not None else 1024,
+        "temperature": float(temperature) if temperature is not None else DEFAULT_TEMPERATURE,
+        "top_p": float(top_p) if top_p is not None else DEFAULT_TOP_P,
+        "min_p": float(min_p) if min_p is not None else DEFAULT_MIN_P,
+        "repetition_penalty": float(repetition_penalty) if repetition_penalty is not None else DEFAULT_REPETITION_PENALTY,
+        "max_tokens": int(max_tokens) if max_tokens is not None else DEFAULT_MAX_TOKENS,
         "voice_preset": voice_preset,
         "tags": tags,
+        "expertise_keywords": expertise_keywords,
         "creator": str(data.get("creator") or payload.get("creator") or "User").strip(),
         "character_version": str(data.get("character_version") or payload.get("character_version") or "1.0").strip(),
         "extensions": extensions,
@@ -172,13 +176,14 @@ def create_character(req: CharacterCreateRequest):
         post_history_instructions=req.post_history_instructions or "",
         alternate_greetings=req.alternate_greetings or [],
         character_book=req.character_book,
-        temperature=req.temperature if req.temperature is not None else 0.7,
-        top_p=req.top_p if req.top_p is not None else 0.9,
-        min_p=req.min_p if req.min_p is not None else 0.0,
-        repetition_penalty=req.repetition_penalty if req.repetition_penalty is not None else 1.05,
-        max_tokens=req.max_tokens if req.max_tokens is not None else 1024,
+        temperature=req.temperature if req.temperature is not None else DEFAULT_TEMPERATURE,
+        top_p=req.top_p if req.top_p is not None else DEFAULT_TOP_P,
+        min_p=req.min_p if req.min_p is not None else DEFAULT_MIN_P,
+        repetition_penalty=req.repetition_penalty if req.repetition_penalty is not None else DEFAULT_REPETITION_PENALTY,
+        max_tokens=req.max_tokens if req.max_tokens is not None else DEFAULT_MAX_TOKENS,
         voice_preset=req.voice_preset or "female_narrator",
         tags=req.tags or [],
+        expertise_keywords=req.expertise_keywords or [],
         creator=req.creator or "User",
         character_version=req.character_version or "1.0",
         avatar=req.avatar,

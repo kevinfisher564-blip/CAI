@@ -10,6 +10,7 @@ from app.config import (
 )
 from app.services.context_manager import context_manager
 from app.services.llm_service import llm_service, clean_to_pure_dialogue
+from app.services.speaker_selector import speaker_selector
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -18,6 +19,11 @@ class ChatMessage(BaseModel):
     content: Any  # Can be str or multimodal list of dicts (text + image_url)
     sender: Optional[str] = None
 
+class SelectSpeakerRequest(BaseModel):
+    messages: List[Dict[str, Any]]
+    room_characters: List[Dict[str, Any]]
+    last_speaker_id: Optional[str] = None
+
 class ChatRequest(BaseModel):
     character_id: str
     messages: List[Dict[str, Any]]
@@ -25,6 +31,23 @@ class ChatRequest(BaseModel):
     character_card: Dict[str, Any]
     scenario: Optional[Dict[str, Any]] = None
     room_characters: Optional[List[Dict[str, Any]]] = None
+
+@router.post("/select-speaker")
+def select_speaker(req: SelectSpeakerRequest):
+    """
+    Intelligently select the next speaking character based on @mentions, topic relevance, and recency penalty.
+    """
+    try:
+        if not req.room_characters:
+            raise HTTPException(status_code=400, detail="room_characters list cannot be empty.")
+        selected = speaker_selector.select_next_speaker(
+            messages=req.messages,
+            room_characters=req.room_characters,
+            last_speaker_id=req.last_speaker_id
+        )
+        return {"selected_character": selected}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/completions")
 async def chat_completion(req: ChatRequest):

@@ -50,10 +50,19 @@ class ContextManager:
 
         # 2. Room Participants Awareness
         if room_characters and len(room_characters) > 1:
-            participant_names = [c.get("name", "Character") for c in room_characters]
+            participant_details = []
+            for c in room_characters:
+                c_name = c.get("name", "Character")
+                kws = c.get("expertise_keywords") or []
+                if kws:
+                    participant_details.append(f"{c_name} (Expertise/Interests: {', '.join(kws)})")
+                else:
+                    participant_details.append(c_name)
+
             system_blocks.append(
-                f"=== ROOM PARTICIPANTS ===\nThe following individuals are present in this scene: {', '.join(participant_names)}.\n"
-                f"Stay fully in character as {char_name}. You can interact with both {user_name} and other characters in the room."
+                f"=== ROOM PARTICIPANTS ===\n"
+                f"The following individuals are present in this scene:\n- " + "\n- ".join(participant_details) + "\n"
+                f"Stay fully in character as {char_name}. You can talk to {user_name} or reply directly to any of the other characters in the room."
             )
 
         # 3. Responding Character Identity & Persona (Tavern Spec V2 Tier 1)
@@ -67,6 +76,9 @@ class ContextManager:
         if character_data.get('personality'):
             char_info.append(f"Personality: {self.replace_macros(character_data.get('personality'), char_name, user_name)}")
             
+        if character_data.get('expertise_keywords'):
+            char_info.append(f"Areas of Expertise & Interests: {', '.join(character_data.get('expertise_keywords'))}")
+
         if character_data.get('scenario'):
             char_info.append(f"Character Background Context: {self.replace_macros(character_data.get('scenario'), char_name, user_name)}")
 

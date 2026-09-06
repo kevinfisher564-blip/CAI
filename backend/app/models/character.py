@@ -31,6 +31,7 @@ class CharacterCard(BaseModel):
     alternate_greetings: List[str] = Field(default_factory=list)
     character_book: Optional[Dict[str, Any]] = None
     tags: List[str] = Field(default_factory=list)
+    expertise_keywords: List[str] = Field(default_factory=list)
     creator: str = ""
     character_version: str = "1.0"
     extensions: Dict[str, Any] = Field(default_factory=dict)
@@ -62,14 +63,15 @@ class CharacterCreateRequest(BaseModel):
     alternate_greetings: Optional[List[str]] = Field(default_factory=list)
     character_book: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = Field(default_factory=list)
+    expertise_keywords: Optional[List[str]] = Field(default_factory=list)
     creator: Optional[str] = ""
     character_version: Optional[str] = "1.0"
     extensions: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 0.9
-    min_p: Optional[float] = 0.0
-    repetition_penalty: Optional[float] = 1.05
-    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = DEFAULT_TEMPERATURE
+    top_p: Optional[float] = DEFAULT_TOP_P
+    min_p: Optional[float] = DEFAULT_MIN_P
+    repetition_penalty: Optional[float] = DEFAULT_REPETITION_PENALTY
+    max_tokens: Optional[int] = DEFAULT_MAX_TOKENS
     voice_preset: Optional[str] = "female_narrator"
     avatar: Optional[str] = None
     voice_sample: Optional[str] = None
@@ -89,6 +91,7 @@ class CharacterUpdateRequest(BaseModel):
     alternate_greetings: Optional[List[str]] = None
     character_book: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = None
+    expertise_keywords: Optional[List[str]] = None
     creator: Optional[str] = None
     character_version: Optional[str] = None
     extensions: Optional[Dict[str, Any]] = None

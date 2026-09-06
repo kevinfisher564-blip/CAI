@@ -31,6 +31,7 @@ export default function CharacterEditor({ character, onSave }) {
   });
 
   const [tagInput, setTagInput] = useState('');
+  const [keywordInput, setKeywordInput] = useState('');
   const [newAltGreeting, setNewAltGreeting] = useState('');
   const [voiceFile, setVoiceFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -51,6 +52,7 @@ export default function CharacterEditor({ character, onSave }) {
       const minP = character.min_p ?? extensions.min_p ?? 0.0;
       const repPen = character.repetition_penalty ?? extensions.repetition_penalty ?? 1.05;
       const maxTok = character.max_tokens ?? character.max_response_tokens ?? extensions.max_tokens ?? extensions.max_response_tokens ?? 1024;
+      const rawKeywords = character.expertise_keywords ?? extensions.expertise_keywords ?? [];
 
       setFormData({
         name: character.name || '',
@@ -65,6 +67,7 @@ export default function CharacterEditor({ character, onSave }) {
         post_history_instructions: character.post_history_instructions || '',
         alternate_greetings: Array.isArray(character.alternate_greetings) ? character.alternate_greetings : [],
         tags: Array.isArray(character.tags) ? character.tags : [],
+        expertise_keywords: Array.isArray(rawKeywords) ? rawKeywords : [],
         creator: character.creator || 'User',
         character_version: character.character_version || '1.0',
         temperature: Number(temp),
@@ -92,6 +95,7 @@ export default function CharacterEditor({ character, onSave }) {
         post_history_instructions: '',
         alternate_greetings: [],
         tags: [],
+        expertise_keywords: [],
         creator: 'User',
         character_version: '1.0',
         temperature: 0.7,
@@ -132,6 +136,21 @@ export default function CharacterEditor({ character, onSave }) {
 
   const handleRemoveTag = (tagToRemove) => {
     setFormData({ ...formData, tags: formData.tags.filter((t) => t !== tagToRemove) });
+  };
+
+  const handleAddKeyword = (e) => {
+    if ((e.key === 'Enter' || e.key === ',') && keywordInput.trim()) {
+      e.preventDefault();
+      const newKw = keywordInput.trim().replace(/^,+|,+$/g, '');
+      if (newKw && !formData.expertise_keywords.includes(newKw)) {
+        setFormData({ ...formData, expertise_keywords: [...formData.expertise_keywords, newKw] });
+      }
+      setKeywordInput('');
+    }
+  };
+
+  const handleRemoveKeyword = (kwToRemove) => {
+    setFormData({ ...formData, expertise_keywords: formData.expertise_keywords.filter((k) => k !== kwToRemove) });
   };
 
   const handleAddAltGreeting = () => {
@@ -181,6 +200,7 @@ export default function CharacterEditor({ character, onSave }) {
         alternate_greetings: formData.alternate_greetings || [],
         ...(formData.character_book ? { character_book: formData.character_book } : {}),
         tags: formData.tags || [],
+        expertise_keywords: formData.expertise_keywords || [],
         creator: formData.creator || 'User',
         character_version: formData.character_version || '1.0',
         temperature: formData.temperature,
@@ -190,6 +210,7 @@ export default function CharacterEditor({ character, onSave }) {
         max_tokens: formData.max_tokens,
         extensions: {
           ...formData.extensions,
+          expertise_keywords: formData.expertise_keywords || [],
           voice_preset: formData.voice_preset || 'female_narrator',
           temperature: formData.temperature,
           top_p: formData.top_p,
@@ -686,6 +707,53 @@ export default function CharacterEditor({ character, onSave }) {
                     type="button" 
                     onClick={() => handleRemoveTag(tag)}
                     style={{ background: 'transparent', border: 'none', color: '#818cf8', cursor: 'pointer', fontSize: '11px' }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Areas of Interest & Knowledge Keywords (Used for Multi-Character Smart Routing) */}
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Sparkles size={15} color="#10b981" /> Areas of Interest & Knowledge Keywords (Multi-Character Routing)
+          </label>
+          <input 
+            type="text" 
+            className="form-input" 
+            value={keywordInput}
+            onChange={(e) => setKeywordInput(e.target.value)}
+            onKeyDown={handleAddKeyword}
+            placeholder="e.g. quantum mechanics, astronomy, forensics, baking, medieval warfare..." 
+          />
+          <span style={{ fontSize: '0.74rem', color: '#9ca3af' }}>
+            When multiple characters are in a chat room, the system matches conversation topics against these keywords to auto-select this character to respond.
+          </span>
+          {formData.expertise_keywords && formData.expertise_keywords.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+              {formData.expertise_keywords.map((kw, idx) => (
+                <span 
+                  key={idx} 
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    padding: '3px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {kw}
+                  <button 
+                    type="button" 
+                    onClick={() => handleRemoveKeyword(kw)}
+                    style={{ background: 'transparent', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: '11px' }}
                   >
                     ×
                   </button>
