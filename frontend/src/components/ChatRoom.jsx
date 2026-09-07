@@ -12,6 +12,7 @@ import {
   Sparkles, 
   ChevronLeft, 
   ChevronRight,
+  ChevronDown,
   Plus,
   Trash2,
   X,
@@ -27,6 +28,8 @@ export default function ChatRoom({
   allCharacters = [],
   character = null, 
   scenario = null, 
+  allScenarios = [],
+  onUpdateScenario,
   onSendMessage, 
   onAudioRecord,
   onOpenNewChat,
@@ -38,6 +41,7 @@ export default function ChatRoom({
   const [messages, setMessages] = useState([]);
   const [greetingIndices, setGreetingIndices] = useState({});
   const [input, setInput] = useState('');
+  const [isScenarioDropdownOpen, setIsScenarioDropdownOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -99,11 +103,18 @@ export default function ChatRoom({
     const initialIndices = {};
 
     // 1. Optional ambient scenario narrative hook
-    const hasScenarioHook = Boolean(scenario && scenario.initial_message);
+    const scenarioHookText = (
+      scenario?.initial_message || 
+      scenario?.first_mes || 
+      scenario?.data?.initial_message || 
+      scenario?.data?.first_mes || 
+      ''
+    ).trim();
+    const hasScenarioHook = Boolean(scenario && scenarioHookText);
     if (hasScenarioHook) {
       initialMsgs.push({
         role: 'system',
-        content: scenario.initial_message,
+        content: scenarioHookText,
         isScenarioHook: true
       });
     }
@@ -135,7 +146,7 @@ export default function ChatRoom({
 
     setGreetingIndices(initialIndices);
     setMessages(initialMsgs);
-  }, [scenario?.id, activeCharacters.map((c) => c.id).join(',')]);
+  }, [scenario?.id, scenario?.initial_message, scenario?.first_mes, activeCharacters.map((c) => c.id).join(',')]);
 
   const handleSwipeGreeting = (charId, direction) => {
     const char = activeCharacters.find((c) => c.id === charId);
@@ -658,31 +669,132 @@ export default function ChatRoom({
             </div>
           </div>
 
-          {/* Scenario Badge */}
-          {scenario && (
-            <div 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(6, 182, 212, 0.12)',
-                border: '1px solid rgba(6, 182, 212, 0.3)',
-                color: '#06b6d4',
-                padding: '4px 10px',
-                borderRadius: '16px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                maxWidth: '220px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-              title={scenario.scenario_prompt}
-            >
-              <Compass size={14} style={{ flexShrink: 0 }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{scenario.title}</span>
-            </div>
-          )}
+          {/* Scenario Badge & Selector */}
+          <div style={{ position: 'relative' }}>
+            {scenario ? (
+              <div 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(6, 182, 212, 0.12)',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  color: '#06b6d4',
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  maxWidth: '240px',
+                  cursor: onUpdateScenario ? 'pointer' : 'default',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+                onClick={() => onUpdateScenario && setIsScenarioDropdownOpen((prev) => !prev)}
+                title={`${scenario.title}: ${scenario.scenario_prompt || ''} (Click to switch or clear)`}
+              >
+                <Compass size={14} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{scenario.title}</span>
+                {onUpdateScenario && <ChevronDown size={12} style={{ flexShrink: 0, opacity: 0.7 }} />}
+              </div>
+            ) : (
+              onUpdateScenario && allScenarios && allScenarios.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsScenarioDropdownOpen((prev) => !prev)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'rgba(6, 182, 212, 0.08)',
+                    border: '1px dashed rgba(6, 182, 212, 0.35)',
+                    color: '#06b6d4',
+                    padding: '3px 10px',
+                    borderRadius: '14px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Assign a scene / world scenario to this room"
+                >
+                  <Compass size={13} /> + Scenario
+                </button>
+              )
+            )}
+
+            {/* Scenario Dropdown Menu */}
+            {isScenarioDropdownOpen && onUpdateScenario && (
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: '115%',
+                  left: 0,
+                  zIndex: 200,
+                  background: '#111827',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '10px',
+                  padding: '6px',
+                  minWidth: '240px',
+                  maxWidth: '300px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}
+              >
+                <div style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 700, padding: '4px 8px', letterSpacing: '0.05em' }}>
+                  ROOM SCENARIO
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateScenario(null);
+                    setIsScenarioDropdownOpen(false);
+                  }}
+                  style={{
+                    textAlign: 'left',
+                    background: !scenario ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 8px',
+                    color: !scenario ? '#06b6d4' : '#cbd5e1',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: !scenario ? 600 : 400
+                  }}
+                >
+                  None (Freeform Chat)
+                </button>
+                {(allScenarios || []).map((sc) => (
+                  <button
+                    key={sc.id}
+                    type="button"
+                    onClick={() => {
+                      onUpdateScenario(sc);
+                      setIsScenarioDropdownOpen(false);
+                    }}
+                    style={{
+                      textAlign: 'left',
+                      background: scenario?.id === sc.id ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 8px',
+                      color: scenario?.id === sc.id ? '#06b6d4' : '#cbd5e1',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      fontWeight: scenario?.id === sc.id ? 600 : 400,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title={sc.summary || sc.scenario_prompt}
+                  >
+                    {sc.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Header Controls */}

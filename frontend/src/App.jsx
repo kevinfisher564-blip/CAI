@@ -201,6 +201,9 @@ export default function App() {
       await fetchScenarios();
       setSelectedScenarioId(saved.id);
       setEditingScenario(saved);
+      if (activeScenario?.id === saved.id) {
+        setActiveScenario(saved);
+      }
     } else {
       throw new Error('Failed to save scenario');
     }
@@ -310,7 +313,7 @@ export default function App() {
           </div>
           <div>
             <div className="brand-title">Character AI</div>
-            <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Multimodal Studio Studio</div>
+            <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Multimodal Studio</div>
           </div>
         </div>
 
@@ -376,6 +379,8 @@ export default function App() {
             characters={activeCharacters}
             allCharacters={characters}
             scenario={activeScenario}
+            allScenarios={scenarios}
+            onUpdateScenario={setActiveScenario}
             onSendMessage={handleSendMessage}
             onAudioRecord={handleAudioRecord}
             onOpenNewChat={() => setIsNewChatModalOpen(true)}

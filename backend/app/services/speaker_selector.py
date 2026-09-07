@@ -101,6 +101,7 @@ class SpeakerSelector:
     ) -> Dict[str, Any]:
         """
         Selects the best next character to respond given conversation context and active room participants.
+        Strictly prevents the same character from speaking consecutive turns when other room participants exist.
         """
         if not room_characters:
             raise ValueError("Cannot select speaker from an empty room_characters list.")
@@ -111,16 +112,35 @@ class SpeakerSelector:
         latest_msg = messages[-1] if messages else {}
         latest_text = str(latest_msg.get("content") or "")
 
-        # 1. Check for explicit @mention in the most recent message
-        mentioned_char = self.extract_mention(latest_text, room_characters)
+        # 1. Determine effective last speaker ID (from parameter or by inspecting the latest turn)
+        effective_last_speaker_id = str(last_speaker_id) if last_speaker_id else None
+        if not effective_last_speaker_id and latest_msg.get("role") == "assistant":
+            # Check character_id directly or sender name match
+            if latest_msg.get("character_id"):
+                effective_last_speaker_id = str(latest_msg["character_id"])
+            elif latest_msg.get("sender"):
+                sender_name = str(latest_msg["sender"]).lower().strip()
+                for c in room_characters:
+                    if (c.get("name") or "").lower().strip() == sender_name:
+                        effective_last_speaker_id = str(c.get("id") or "")
+                        break
+
+        # 2. Filter candidate characters to strictly exclude the last speaker from replying to itself
+        if effective_last_speaker_id and len(room_characters) > 1:
+            candidate_characters = [c for c in room_characters if str(c.get("id") or "") != effective_last_speaker_id]
+            if not candidate_characters:
+                candidate_characters = room_characters
+        else:
+            candidate_characters = room_characters
+
+        # 3. Check for explicit @mention targeting one of the eligible candidate characters
+        mentioned_char = self.extract_mention(latest_text, candidate_characters)
         if mentioned_char:
             return mentioned_char
 
-        # 2. Score candidates with high emphasis on latest user message
+        # 4. Score eligible candidates with high emphasis on latest user message and recent context
         scores: List[tuple[Dict[str, Any], float]] = []
-        for char in room_characters:
-            char_id = str(char.get("id") or "")
-            
+        for char in candidate_characters:
             # Score latest message heavily
             latest_score = self.calculate_topic_score(latest_text, char, is_latest_turn=True)
             
@@ -131,25 +151,11 @@ class SpeakerSelector:
                 older_score = self.calculate_topic_score(" ".join(older_contexts), char, is_latest_turn=False)
 
             total_score = latest_score + (older_score * 0.5)
-
-            # Apply recency penalty to prevent consecutive self-replies when other candidates exist
-            if last_speaker_id and char_id == str(last_speaker_id):
-                total_score -= 3.0
-
             scores.append((char, total_score))
 
         # Sort descending by score
         scores.sort(key=lambda x: x[1], reverse=True)
 
-        # If top score has a distinct winner, return top character
-        top_char, top_score = scores[0]
-
-        # If all scores are tied or non-positive, prioritize a character who didn't just speak
-        if top_score <= 0 and last_speaker_id and len(room_characters) > 1:
-            alternatives = [c for c in room_characters if str(c.get("id")) != str(last_speaker_id)]
-            if alternatives:
-                return alternatives[0]
-
-        return top_char
+        return scores[0][0]
 
 speaker_selector = SpeakerSelector()
