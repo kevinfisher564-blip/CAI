@@ -6,6 +6,7 @@ import ScenarioGallery from './components/ScenarioGallery';
 import ScenarioEditor from './components/ScenarioEditor';
 import ChatRoom from './components/ChatRoom';
 import NewChatModal from './components/NewChatModal';
+import { logApiRequest, logApiResponse } from './utils/debugLogger';
 
 export default function App() {
   const [characters, setCharacters] = useState([]);
@@ -259,6 +260,9 @@ export default function App() {
       room_characters: roomCharacters || undefined
     };
 
+    logApiRequest('/api/chat/completions', respondingChar.name, payload);
+    const startTime = Date.now();
+
     try {
       const res = await fetch('/api/chat/completions', {
         method: 'POST',
@@ -266,7 +270,9 @@ export default function App() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        logApiResponse('/api/chat/completions', respondingChar.name, data, Date.now() - startTime);
+        return data;
       }
     } catch (err) {
       console.error('Chat error:', err);

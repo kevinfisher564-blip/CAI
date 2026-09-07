@@ -20,6 +20,7 @@ import {
   AtSign,
   Sliders
 } from 'lucide-react';
+import { logSpeakerSelection } from '../utils/debugLogger';
 
 export default function ChatRoom({ 
   characters = [], 
@@ -97,8 +98,9 @@ export default function ChatRoom({
     const initialMsgs = [];
     const initialIndices = {};
 
-    // Optional ambient scenario narrative hook
-    if (scenario && scenario.initial_message) {
+    // 1. Optional ambient scenario narrative hook
+    const hasScenarioHook = Boolean(scenario && scenario.initial_message);
+    if (hasScenarioHook) {
       initialMsgs.push({
         role: 'system',
         content: scenario.initial_message,
@@ -106,20 +108,30 @@ export default function ChatRoom({
       });
     }
 
-    // Opening greetings from participating characters
+    // Initialize greeting indices for all active characters
     activeCharacters.forEach((char) => {
       initialIndices[char.id] = 0;
-      initialMsgs.push({
-        role: 'assistant',
-        content: char.first_mes || `Hello! I am ${char.name}.`,
-        sender: char.name,
-        character_id: char.id,
-        voice_preset: char.voice_preset,
-        voice_sample: char.voice_sample,
-        voice_sample_text: char.voice_sample_text,
-        isInitialGreeting: true
-      });
     });
+
+    // 2. Opening greeting: Single Host / Scenario Hook Pattern
+    // In multi-character rooms, if a scenario hook exists, it serves as the opening scene setup.
+    // If no scenario hook is provided, or in 1-on-1 chats, only the primary host character (activeCharacters[0])
+    // adds their opening greeting. Other characters join conversation dynamically as turns proceed.
+    if (activeCharacters.length > 0) {
+      if (!hasScenarioHook || activeCharacters.length === 1) {
+        const hostChar = activeCharacters[0];
+        initialMsgs.push({
+          role: 'assistant',
+          content: hostChar.first_mes || `Hello! I am ${hostChar.name}.`,
+          sender: hostChar.name,
+          character_id: hostChar.id,
+          voice_preset: hostChar.voice_preset,
+          voice_sample: hostChar.voice_sample,
+          voice_sample_text: hostChar.voice_sample_text,
+          isInitialGreeting: true
+        });
+      }
+    }
 
     setGreetingIndices(initialIndices);
     setMessages(initialMsgs);
@@ -366,6 +378,7 @@ export default function ChatRoom({
       if (res.ok) {
         const data = await res.json();
         if (data.selected_character) {
+          logSpeakerSelection(data.selected_character, roomChars, history);
           return data.selected_character;
         }
       }
