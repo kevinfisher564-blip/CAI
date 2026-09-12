@@ -71,27 +71,27 @@ echo " Pre-downloading Model Weights via Hugging Face CLI"
 echo "=========================================================="
 
 #echo "[1/4] Pre-downloading Qwen2.5-VL-7B-Instruct..."
-#hf download Qwen/Qwen2.5-VL-7B-Instruct --cache-dir ${HF_HOME}
+hf download Qwen/Qwen2.5-VL-7B-Instruct --cache-dir ${HF_HOME}
 
-echo "[1/4] Pre-downloading Qwen2.5-VL-7B-Instruct Abliterated..."
-mkdir -p /workspace/models/qwen3-vl-8b-abliterated
-hf download wangkanai/qwen3-vl-8b-instruct \
-    qwen3-vl-8b-instruct-abliterated.safetensors \
-    --local-dir /workspace/models/qwen3-vl-8b-abliterated
+#echo "[1/4] Pre-downloading Qwen2.5-VL-7B-Instruct Abliterated..."
+#mkdir -p /workspace/models/qwen3-vl-8b-abliterated
+#hf download wangkanai/qwen3-vl-8b-instruct \
+#    qwen3-vl-8b-instruct-abliterated.safetensors \
+#    --local-dir /workspace/models/qwen3-vl-8b-abliterated
 
-hf download Qwen/Qwen3-VL-8B-Instruct \
-    config.json \
-    generation_config.json \
-    preprocessor_config.json \
-    video_preprocessor_config.json \
-    tokenizer.json \
-    tokenizer_config.json \
-    vocab.json \
-    merges.txt \
-    --local-dir /workspace/models/qwen3-vl-8b-abliterated
+#hf download Qwen/Qwen3-VL-8B-Instruct \
+#    config.json \
+#    generation_config.json \
+#    preprocessor_config.json \
+#    video_preprocessor_config.json \
+#    tokenizer.json \
+#    tokenizer_config.json \
+#    vocab.json \
+#    merges.txt \
+#    --local-dir /workspace/models/qwen3-vl-8b-abliterated
 
-echo "[2/4] Pre-downloading Pixtral-12B-2409..."
-hf download mistralai/Pixtral-12B-2409 --cache-dir ${HF_HOME}    
+#echo "[2/4] Pre-downloading Pixtral-12B-2409..."
+#hf download mistralai/Pixtral-12B-2409 --cache-dir ${HF_HOME}    
         
 echo "[3/4] Pre-downloading Faster-Whisper large-v3-turbo..."
 hf download deepdml/faster-whisper-large-v3-turbo-ct2 --cache-dir ${HF_HOME}

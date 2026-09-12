@@ -1,8 +1,19 @@
 #!/bin/bash
 # Start vLLM inference engine hosting selected model on GPU (Port 9001)
 
+# Auto-load environment variables from .env if present
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+elif [ -f /workspace/.env ]; then
+    set -a
+    source /workspace/.env
+    set +a
+fi
+
 PORT=${PORT:-9001}
-GPU_MEMORY_UTIL=${GPU_MEMORY_UTIL:-0.48}
+GPU_MEMORY_UTIL=${GPU_MEMORY_UTIL:-0.85}
 MAX_MODEL_LEN=${MAX_MODEL_LEN:-32768}
 
 # Disable FlashInfer sampler to prevent JIT sampling compilation errors
@@ -128,6 +139,7 @@ echo "=========================================================="
 echo " Starting vLLM Engine for Multimodal Character AI"
 echo " Model: ${MODEL_NAME}"
 echo " Port: ${PORT}"
+echo " GPU Memory Limit: ${GPU_MEMORY_UTIL} (Max utilization)"
 echo " Context Limit: ${MAX_MODEL_LEN} tokens"
 echo " FlashInfer Sampler Disabled: TRUE"
 echo "=========================================================="
