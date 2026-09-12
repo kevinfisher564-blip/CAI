@@ -33,9 +33,19 @@ apt-get update && apt-get install -y \
     nodejs \
     npm
 
-# 2. Set up Python Environment & Install Dependencies
-pip install --upgrade pip
-pip install -r backend/requirements.txt
+# 2. Set up Python Environment & Fast Package Installer (uv)
+export PIP_CACHE_DIR="/workspace/.cache/pip"
+export UV_CACHE_DIR="/workspace/.cache/uv"
+mkdir -p ${PIP_CACHE_DIR} ${UV_CACHE_DIR}
+
+echo "Installing uv ultra-fast package installer..."
+pip install --upgrade pip uv
+
+echo "Installing backend dependencies with CUDA index alignment..."
+uv pip install --system \
+    --extra-index-url https://download.pytorch.org/whl/cu128 \
+    -r backend/requirements.txt || pip install --extra-index-url https://download.pytorch.org/whl/cu128 -r backend/requirements.txt
+
 
 # 3. Configure Hugging Face CLI & Token Authentication
 export HF_HOME="/workspace/huggingface-cache"

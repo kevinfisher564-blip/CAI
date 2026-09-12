@@ -25,10 +25,8 @@ Clone this repository to your RunPod workspace directory and export your Hugging
 ```bash
 cd /workspace
 git clone https://github.com/kevinfisher564-blip/CAI.git
+git clone https://github.com/kevinfisher564-blip/CAI_Chars.git
 cd CAI
-
-# (Optional but recommended) Export your Hugging Face Token for fast CLI downloads
-export HF_TOKEN="hf_your_token_here"
 
 ### 2. External Assets Repository Configuration (Characters, Voices, Scenarios)
 You can version and deploy your characters, voice samples, and scenarios in a separate Git repository.
@@ -37,12 +35,13 @@ To link your external assets repository, configure environment variables in your
 
 ```bash
 # Option A: Single assets root directory (with characters/, voices/, scenarios/ subdirectories)
-export ASSETS_DIR="/workspace/my-cai-assets"
+export ASSETS_DIR="/workspace/CAI_Chars"
 
 # Option B: Individual directory overrides
-export CHARACTERS_DIR="/workspace/my-cai-assets/characters"
-export VOICES_DIR="/workspace/my-cai-assets/voices"
-export SCENARIOS_DIR="/workspace/my-cai-assets/scenarios"
+export CHARACTERS_DIR="/workspace/CAI_Chars/characters"
+export VOICES_DIR="/workspace/CAI_Chars/voices"
+export SCENARIOS_DIR="/workspace/CAI_Chars/scenarios
+
 
 # Optional: Auto-clone assets during setup_runpod.sh
 export ASSETS_REPO_URL="https://github.com/your-username/my-cai-assets.git"
