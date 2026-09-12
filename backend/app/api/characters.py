@@ -11,13 +11,13 @@ from app.config import (
     DEFAULT_MIN_P,
     DEFAULT_REPETITION_PENALTY,
     DEFAULT_MAX_TOKENS,
+    CHARACTERS_DIR,
+    VOICES_DIR,
 )
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
-
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHARACTERS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "characters"))
 os.makedirs(CHARACTERS_DIR, exist_ok=True)
+os.makedirs(VOICES_DIR, exist_ok=True)
 
 def parse_character_data(payload: dict, file_id: Optional[str] = None) -> CharacterCard:
     if not isinstance(payload, dict):
@@ -230,7 +230,7 @@ async def upload_voice_sample(
     if not filepath or not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Character not found")
         
-    voice_dir = os.path.join(CHARACTERS_DIR, "voice_samples")
+    voice_dir = VOICES_DIR
     os.makedirs(voice_dir, exist_ok=True)
     
     with open(filepath, "r", encoding="utf-8") as f:
@@ -246,13 +246,20 @@ async def upload_voice_sample(
             except Exception:
                 pass
 
-    # Clean up any lingering files for this character ID
-    for existing_file in os.listdir(voice_dir):
-        if existing_file.startswith(f"{card_id}_voice"):
-            try:
-                os.remove(os.path.join(voice_dir, existing_file))
-            except Exception:
-                pass
+    # Clean up any lingering files for this character ID in voice_dir and fallback dir
+    dirs_to_clean = [voice_dir]
+    fallback_vdir = os.path.join(CHARACTERS_DIR, "voice_samples")
+    if os.path.abspath(fallback_vdir) != os.path.abspath(voice_dir) and os.path.exists(fallback_vdir):
+        dirs_to_clean.append(fallback_vdir)
+
+    for vdir in dirs_to_clean:
+        if os.path.exists(vdir):
+            for existing_file in os.listdir(vdir):
+                if existing_file.startswith(f"{card_id}_voice"):
+                    try:
+                        os.remove(os.path.join(vdir, existing_file))
+                    except Exception:
+                        pass
                 
     ext = os.path.splitext(file.filename)[1] or ".wav"
     sample_filename = f"{card_id}_voice_{int(time.time())}{ext}"
@@ -276,7 +283,7 @@ async def delete_voice_sample(card_id: str):
     if not filepath or not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="Character not found")
         
-    voice_dir = os.path.join(CHARACTERS_DIR, "voice_samples")
+    voice_dir = VOICES_DIR
     with open(filepath, "r", encoding="utf-8") as f:
         raw_data = json.load(f)
         
@@ -285,21 +292,27 @@ async def delete_voice_sample(card_id: str):
     card.voice_sample = None
     card.voice_sample_text = None
     
-    if old_sample and os.path.exists(voice_dir):
-        old_path = os.path.join(voice_dir, old_sample)
-        if os.path.exists(old_path):
-            try:
-                os.remove(old_path)
-            except Exception:
-                pass
-                
-    if os.path.exists(voice_dir):
-        for existing_file in os.listdir(voice_dir):
-            if existing_file.startswith(f"{card_id}_voice"):
+    dirs_to_clean = [voice_dir]
+    fallback_vdir = os.path.join(CHARACTERS_DIR, "voice_samples")
+    if os.path.abspath(fallback_vdir) != os.path.abspath(voice_dir) and os.path.exists(fallback_vdir):
+        dirs_to_clean.append(fallback_vdir)
+
+    for vdir in dirs_to_clean:
+        if old_sample and os.path.exists(vdir):
+            old_path = os.path.join(vdir, old_sample)
+            if os.path.exists(old_path):
                 try:
-                    os.remove(os.path.join(voice_dir, existing_file))
+                    os.remove(old_path)
                 except Exception:
                     pass
+                    
+        if os.path.exists(vdir):
+            for existing_file in os.listdir(vdir):
+                if existing_file.startswith(f"{card_id}_voice"):
+                    try:
+                        os.remove(os.path.join(vdir, existing_file))
+                    except Exception:
+                        pass
                 
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)

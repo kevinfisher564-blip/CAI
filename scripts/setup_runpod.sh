@@ -3,6 +3,19 @@
 
 set -e
 
+# Auto-load environment variables from .env if present
+if [ -f .env ]; then
+    echo "Loading environment variables from .env..."
+    set -a
+    source .env
+    set +a
+elif [ -f /workspace/.env ]; then
+    echo "Loading environment variables from /workspace/.env..."
+    set -a
+    source /workspace/.env
+    set +a
+fi
+
 echo "=========================================================="
 echo " Bootstrapping RunPod GPU Workspace Environment"
 echo "=========================================================="
@@ -75,6 +88,22 @@ hf download deepdml/faster-whisper-large-v3-turbo-ct2 --cache-dir ${HF_HOME}
 
 echo "[4/4] Pre-downloading OmniVoice zero-shot TTS model..."
 hf download k2-fsa/OmniVoice --cache-dir ${HF_HOME} || true
+
+# 5. (Optional) Clone External Assets Repository (Characters, Voices, Scenarios)
+if [ -n "${ASSETS_REPO_URL}" ] || [ -n "${ASSETS_REPO}" ]; then
+    REPO_URL="${ASSETS_REPO_URL:-$ASSETS_REPO}"
+    TARGET_DIR="${ASSETS_DIR:-/workspace/cai-assets}"
+    echo "=========================================================="
+    echo " Setting up External Assets Repository: ${REPO_URL}"
+    echo "=========================================================="
+    if [ -d "${TARGET_DIR}/.git" ]; then
+        echo "Updating existing assets repository in ${TARGET_DIR}..."
+        (cd "${TARGET_DIR}" && git pull) || true
+    else
+        git clone "${REPO_URL}" "${TARGET_DIR}"
+    fi
+    echo "Assets cloned to ${TARGET_DIR}."
+fi
 
 echo "=========================================================="
 echo " RunPod Environment Setup Complete!"

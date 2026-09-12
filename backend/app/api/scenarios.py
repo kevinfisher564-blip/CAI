@@ -3,11 +3,9 @@ import json
 from fastapi import APIRouter, HTTPException
 from typing import List
 from app.models.scenario import ScenarioCard, ScenarioCreateRequest, ScenarioUpdateRequest
+from app.config import SCENARIOS_DIR
 
 router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
-
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCENARIOS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "scenarios"))
 os.makedirs(SCENARIOS_DIR, exist_ok=True)
 
 DEFAULT_SCENARIOS = [
@@ -38,11 +36,15 @@ DEFAULT_SCENARIOS = [
 ]
 
 def init_default_scenarios():
-    for sc in DEFAULT_SCENARIOS:
-        filepath = os.path.join(SCENARIOS_DIR, f"{sc['id']}.json")
-        if not os.path.exists(filepath):
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(sc, f, indent=2)
+    if not os.path.exists(SCENARIOS_DIR):
+        os.makedirs(SCENARIOS_DIR, exist_ok=True)
+    existing_jsons = [f for f in os.listdir(SCENARIOS_DIR) if f.endswith(".json")]
+    if not existing_jsons:
+        for sc in DEFAULT_SCENARIOS:
+            filepath = os.path.join(SCENARIOS_DIR, f"{sc['id']}.json")
+            if not os.path.exists(filepath):
+                with open(filepath, "w", encoding="utf-8") as f:
+                    json.dump(sc, f, indent=2)
 
 init_default_scenarios()
 

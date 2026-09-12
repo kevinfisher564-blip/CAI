@@ -33,8 +33,7 @@ async def speech_to_text(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHARACTERS_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "characters"))
+from app.config import CHARACTERS_DIR, VOICES_DIR
 
 @router.post("/tts")
 async def text_to_speech(
@@ -53,11 +52,15 @@ async def text_to_speech(
         if voice_sample_path:
             resolved_path = voice_sample_path
             if not os.path.isabs(voice_sample_path):
-                sample_candidate = os.path.join(CHARACTERS_DIR, "voice_samples", voice_sample_path)
-                if os.path.exists(sample_candidate):
-                    resolved_path = sample_candidate
-                elif os.path.exists(os.path.join(CHARACTERS_DIR, voice_sample_path)):
-                    resolved_path = os.path.join(CHARACTERS_DIR, voice_sample_path)
+                candidates = [
+                    os.path.join(VOICES_DIR, voice_sample_path),
+                    os.path.join(CHARACTERS_DIR, "voice_samples", voice_sample_path),
+                    os.path.join(CHARACTERS_DIR, voice_sample_path),
+                ]
+                for candidate in candidates:
+                    if os.path.exists(candidate):
+                        resolved_path = candidate
+                        break
             data["voice_sample_path"] = resolved_path
 
         async with httpx.AsyncClient(timeout=120.0) as client:

@@ -5,6 +5,19 @@ echo "=========================================================="
 echo " Multimodal Character AI - Master Launcher"
 echo "=========================================================="
 
+# Auto-load environment variables from .env if present
+if [ -f .env ]; then
+    echo " Loading environment variables from .env..."
+    set -a
+    source .env
+    set +a
+elif [ -f /workspace/.env ]; then
+    echo " Loading environment variables from /workspace/.env..."
+    set -a
+    source /workspace/.env
+    set +a
+fi
+
 # Function to discover available models from Hugging Face cache and workspace
 get_available_models() {
     python3 - <<'EOF'
@@ -162,6 +175,18 @@ SELECTED_TTS_ENGINE="${SELECTED_TTS_ENGINE:-omnivoice}"
 echo " Selected LLM: ${SELECTED_MODEL}"
 echo " Selected TTS: ${SELECTED_TTS_ENGINE}"
 echo " STT Engine:   Faster-Whisper (Port 8002)"
+if [ -n "$ASSETS_DIR" ]; then
+    echo " Assets Root:  ${ASSETS_DIR}"
+fi
+if [ -n "$CHARACTERS_DIR" ]; then
+    echo " Characters:   ${CHARACTERS_DIR}"
+fi
+if [ -n "$VOICES_DIR" ]; then
+    echo " Voices:       ${VOICES_DIR}"
+fi
+if [ -n "$SCENARIOS_DIR" ]; then
+    echo " Scenarios:    ${SCENARIOS_DIR}"
+fi
 echo "=========================================================="
 
 # Ensure previous instances and GPU allocations are cleanly stopped and freed
