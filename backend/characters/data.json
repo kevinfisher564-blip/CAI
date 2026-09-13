@@ -33,6 +33,20 @@
       "Drama",
       "Exploration"
     ],
+    "expertise_keywords": [
+      "positronics",
+      "cybernetics",
+      "computation",
+      "physics",
+      "astronomy",
+      "engineering",
+      "mathematics",
+      "logic",
+      "violin",
+      "spot",
+      "artificial intelligence",
+      "quantum mechanics"
+    ],
     "creator": "OpenAI",
     "character_version": "1.0",
     "temperature": 0.7,
@@ -41,6 +55,20 @@
     "repetition_penalty": 1.05,
     "max_tokens": 1024,
     "extensions": {
+      "expertise_keywords": [
+        "positronics",
+        "cybernetics",
+        "computation",
+        "physics",
+        "astronomy",
+        "engineering",
+        "mathematics",
+        "logic",
+        "violin",
+        "spot",
+        "artificial intelligence",
+        "quantum mechanics"
+      ],
       "voice_preset": "female_narrator",
       "temperature": 0.7,
       "top_p": 0.9,

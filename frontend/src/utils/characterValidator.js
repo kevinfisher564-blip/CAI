@@ -156,10 +156,49 @@ export function validateAndParseCharacterJson(input) {
     extensions = { ...parsed.extensions };
   }
 
+  // Expertise keywords validation (Array of strings, supporting alternate aliases and string delimiters)
+  let expertise_keywords = [];
+  const rawKeywords =
+    data.expertise_keywords ??
+    parsed.expertise_keywords ??
+    extensions['expertise_keywords'] ??
+    data.areas_of_expertise ??
+    parsed.areas_of_expertise ??
+    extensions['areas_of_expertise'] ??
+    data.knowledge_keywords ??
+    parsed.knowledge_keywords ??
+    extensions['knowledge_keywords'] ??
+    data.keywords ??
+    parsed.keywords ??
+    extensions['keywords'];
+
+  if (Array.isArray(rawKeywords)) {
+    expertise_keywords = rawKeywords.map((k) => String(k).trim()).filter(Boolean);
+  } else if (typeof rawKeywords === 'string' && rawKeywords.trim()) {
+    expertise_keywords = rawKeywords
+      .split(/[,;\n]+/)
+      .map((k) => k.trim())
+      .filter(Boolean);
+  }
+
+  // Ensure extensions mirror expertise_keywords
+  extensions['expertise_keywords'] = expertise_keywords;
+
   // Voice preset validation
   const validVoicePresets = ['female_narrator', 'male_deep', 'soft_storyteller', 'energetic_companion'];
   const rawVoicePreset = data.voice_preset || parsed.voice_preset || extensions['voice_preset'];
   const voice_preset = validVoicePresets.includes(rawVoicePreset) ? rawVoicePreset : 'female_narrator';
+
+  // Voice sample & transcript extraction
+  const rawVoiceSample = data.voice_sample ?? parsed.voice_sample ?? extensions['voice_sample'];
+  const voice_sample = rawVoiceSample ? String(rawVoiceSample).trim() : null;
+
+  const rawVoiceSampleText = data.voice_sample_text ?? parsed.voice_sample_text ?? extensions['voice_sample_text'];
+  const voice_sample_text = rawVoiceSampleText ? String(rawVoiceSampleText).trim() : '';
+
+  // Avatar image reference
+  const rawAvatar = data.avatar ?? parsed.avatar ?? extensions['avatar'];
+  const avatar = rawAvatar ? String(rawAvatar).trim() : null;
 
   // Sampling parameters (temperature, top_p, min_p, repetition_penalty, max_tokens)
   const rawTemp = data.temperature ?? parsed.temperature ?? extensions.temperature;
@@ -193,6 +232,7 @@ export function validateAndParseCharacterJson(input) {
     alternate_greetings,
     character_book,
     tags,
+    expertise_keywords,
     creator,
     character_version,
     temperature,
@@ -202,6 +242,9 @@ export function validateAndParseCharacterJson(input) {
     max_tokens,
     extensions,
     voice_preset,
+    voice_sample,
+    voice_sample_text,
+    avatar,
     specDetected
   };
 }

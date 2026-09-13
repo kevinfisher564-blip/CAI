@@ -16,6 +16,7 @@ export default function CharacterEditor({ character, onSave }) {
     post_history_instructions: '',
     alternate_greetings: [],
     tags: [],
+    expertise_keywords: [],
     creator: 'User',
     character_version: '1.0',
     temperature: 0.7,
@@ -26,6 +27,7 @@ export default function CharacterEditor({ character, onSave }) {
     voice_preset: 'female_narrator',
     voice_sample: null,
     voice_sample_text: '',
+    avatar: null,
     character_book: null,
     extensions: {}
   });
@@ -44,42 +46,77 @@ export default function CharacterEditor({ character, onSave }) {
     setValidationSuccess(null);
     setVoiceFile(null);
     if (character) {
-      const desc = character.description || character.summary || '';
-      const extensions = character.extensions || {};
+      const charData = character.data && typeof character.data === 'object' ? character.data : character;
+      const desc = charData.description || charData.summary || character.description || character.summary || '';
+      const extensions = charData.extensions || character.extensions || {};
       
-      const temp = character.temperature ?? extensions.temperature ?? 0.7;
-      const topP = character.top_p ?? extensions.top_p ?? 0.9;
-      const minP = character.min_p ?? extensions.min_p ?? 0.0;
-      const repPen = character.repetition_penalty ?? extensions.repetition_penalty ?? 1.05;
-      const maxTok = character.max_tokens ?? character.max_response_tokens ?? extensions.max_tokens ?? extensions.max_response_tokens ?? 1024;
-      const rawKeywords = character.expertise_keywords ?? extensions.expertise_keywords ?? [];
+      const temp = charData.temperature ?? character.temperature ?? extensions.temperature ?? 0.7;
+      const topP = charData.top_p ?? character.top_p ?? extensions.top_p ?? 0.9;
+      const minP = charData.min_p ?? character.min_p ?? extensions.min_p ?? 0.0;
+      const repPen = charData.repetition_penalty ?? character.repetition_penalty ?? extensions.repetition_penalty ?? 1.05;
+      const maxTok = charData.max_tokens ?? character.max_tokens ?? charData.max_response_tokens ?? character.max_response_tokens ?? extensions.max_tokens ?? extensions.max_response_tokens ?? 1024;
+      
+      const rawKeywords =
+        charData.expertise_keywords ??
+        character.expertise_keywords ??
+        extensions.expertise_keywords ??
+        charData.areas_of_expertise ??
+        character.areas_of_expertise ??
+        extensions.areas_of_expertise ??
+        charData.knowledge_keywords ??
+        character.knowledge_keywords ??
+        charData.keywords ??
+        character.keywords ??
+        [];
+
+      let parsedKeywords = [];
+      if (Array.isArray(rawKeywords)) {
+        parsedKeywords = rawKeywords.map((k) => String(k).trim()).filter(Boolean);
+      } else if (typeof rawKeywords === 'string' && rawKeywords.trim()) {
+        parsedKeywords = rawKeywords
+          .split(/[,;\n]+/)
+          .map((k) => k.trim())
+          .filter(Boolean);
+      }
+
+      const rawTags = charData.tags || character.tags || [];
+      const parsedTags = Array.isArray(rawTags)
+        ? rawTags.map((t) => String(t).trim()).filter(Boolean)
+        : (typeof rawTags === 'string' ? rawTags.split(/[,;\n]+/).map((t) => t.trim()).filter(Boolean) : []);
+
+      const rawAlts = charData.alternate_greetings || character.alternate_greetings || [];
+      const parsedAlts = Array.isArray(rawAlts) ? rawAlts : [];
 
       setFormData({
-        name: character.name || '',
+        name: charData.name || character.name || '',
         description: desc,
         summary: desc,
-        personality: character.personality || '',
-        scenario: character.scenario || '',
-        first_mes: character.first_mes || '',
-        mes_example: character.mes_example || '',
-        creator_notes: character.creator_notes || '',
-        system_prompt: character.system_prompt || '',
-        post_history_instructions: character.post_history_instructions || '',
-        alternate_greetings: Array.isArray(character.alternate_greetings) ? character.alternate_greetings : [],
-        tags: Array.isArray(character.tags) ? character.tags : [],
-        expertise_keywords: Array.isArray(rawKeywords) ? rawKeywords : [],
-        creator: character.creator || 'User',
-        character_version: character.character_version || '1.0',
+        personality: charData.personality || character.personality || '',
+        scenario: charData.scenario || character.scenario || '',
+        first_mes: charData.first_mes || character.first_mes || '',
+        mes_example: charData.mes_example || character.mes_example || '',
+        creator_notes: charData.creator_notes || character.creator_notes || '',
+        system_prompt: charData.system_prompt || character.system_prompt || '',
+        post_history_instructions: charData.post_history_instructions || character.post_history_instructions || '',
+        alternate_greetings: parsedAlts,
+        tags: parsedTags,
+        expertise_keywords: parsedKeywords,
+        creator: charData.creator || character.creator || 'User',
+        character_version: charData.character_version || character.character_version || '1.0',
         temperature: Number(temp),
         top_p: Number(topP),
         min_p: Number(minP),
         repetition_penalty: Number(repPen),
         max_tokens: Number(maxTok),
-        voice_preset: character.voice_preset || 'female_narrator',
-        voice_sample: character.voice_sample || null,
-        voice_sample_text: character.voice_sample_text || '',
-        character_book: character.character_book || null,
-        extensions: extensions
+        voice_preset: charData.voice_preset || character.voice_preset || 'female_narrator',
+        voice_sample: charData.voice_sample || character.voice_sample || null,
+        voice_sample_text: charData.voice_sample_text || character.voice_sample_text || '',
+        avatar: charData.avatar || character.avatar || null,
+        character_book: charData.character_book || character.character_book || null,
+        extensions: {
+          ...extensions,
+          expertise_keywords: parsedKeywords
+        }
       });
     } else {
       setFormData({
@@ -106,6 +143,7 @@ export default function CharacterEditor({ character, onSave }) {
         voice_preset: 'female_narrator',
         voice_sample: null,
         voice_sample_text: '',
+        avatar: null,
         character_book: null,
         extensions: {}
       });
@@ -123,34 +161,58 @@ export default function CharacterEditor({ character, onSave }) {
     }
   };
 
+  const addTagsFromInput = (inputStr) => {
+    if (!inputStr || !inputStr.trim()) return;
+    const parts = inputStr
+      .split(/[,;\n]+/)
+      .map((t) => t.trim().replace(/^,+|,+$/g, ''))
+      .filter(Boolean);
+    if (parts.length > 0) {
+      setFormData((prev) => {
+        const current = prev.tags || [];
+        const toAdd = parts.filter((p) => !current.includes(p));
+        return { ...prev, tags: [...current, ...toAdd] };
+      });
+    }
+    setTagInput('');
+  };
+
   const handleAddTag = (e) => {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault();
-      const newTag = tagInput.trim().replace(/^,+|,+$/g, '');
-      if (newTag && !formData.tags.includes(newTag)) {
-        setFormData({ ...formData, tags: [...formData.tags, newTag] });
-      }
-      setTagInput('');
+      addTagsFromInput(tagInput);
     }
   };
 
   const handleRemoveTag = (tagToRemove) => {
-    setFormData({ ...formData, tags: formData.tags.filter((t) => t !== tagToRemove) });
+    setFormData({ ...formData, tags: (formData.tags || []).filter((t) => t !== tagToRemove) });
+  };
+
+  const addKeywordsFromInput = (inputStr) => {
+    if (!inputStr || !inputStr.trim()) return;
+    const parts = inputStr
+      .split(/[,;\n]+/)
+      .map((k) => k.trim().replace(/^,+|,+$/g, ''))
+      .filter(Boolean);
+    if (parts.length > 0) {
+      setFormData((prev) => {
+        const current = prev.expertise_keywords || [];
+        const toAdd = parts.filter((p) => !current.includes(p));
+        return { ...prev, expertise_keywords: [...current, ...toAdd] };
+      });
+    }
+    setKeywordInput('');
   };
 
   const handleAddKeyword = (e) => {
     if ((e.key === 'Enter' || e.key === ',') && keywordInput.trim()) {
       e.preventDefault();
-      const newKw = keywordInput.trim().replace(/^,+|,+$/g, '');
-      if (newKw && !formData.expertise_keywords.includes(newKw)) {
-        setFormData({ ...formData, expertise_keywords: [...formData.expertise_keywords, newKw] });
-      }
-      setKeywordInput('');
+      addKeywordsFromInput(keywordInput);
     }
   };
 
   const handleRemoveKeyword = (kwToRemove) => {
-    setFormData({ ...formData, expertise_keywords: formData.expertise_keywords.filter((k) => k !== kwToRemove) });
+    setFormData({ ...formData, expertise_keywords: (formData.expertise_keywords || []).filter((k) => k !== kwToRemove) });
   };
 
   const handleAddAltGreeting = () => {
@@ -182,8 +244,13 @@ export default function CharacterEditor({ character, onSave }) {
   };
 
   const handleDownloadJson = () => {
-    // Structure 100% compliant Tavern Card V2 JSON
+    // Structure 100% compliant Tavern Card V2 JSON with voice & asset metadata
     const desc = formData.description || formData.summary || '';
+    const voicePreset = formData.voice_preset || character?.voice_preset || 'female_narrator';
+    const voiceSample = formData.voice_sample || character?.voice_sample || null;
+    const voiceSampleText = formData.voice_sample_text || character?.voice_sample_text || '';
+    const avatar = formData.avatar || character?.avatar || null;
+
     const cardData = {
       spec: 'chara_card_v2',
       spec_version: '2.0',
@@ -208,10 +275,17 @@ export default function CharacterEditor({ character, onSave }) {
         min_p: formData.min_p,
         repetition_penalty: formData.repetition_penalty,
         max_tokens: formData.max_tokens,
+        voice_preset: voicePreset,
+        voice_sample: voiceSample,
+        voice_sample_text: voiceSampleText,
+        avatar: avatar,
         extensions: {
           ...formData.extensions,
           expertise_keywords: formData.expertise_keywords || [],
-          voice_preset: formData.voice_preset || 'female_narrator',
+          voice_preset: voicePreset,
+          voice_sample: voiceSample,
+          voice_sample_text: voiceSampleText,
+          avatar: avatar,
           temperature: formData.temperature,
           top_p: formData.top_p,
           min_p: formData.min_p,
@@ -258,6 +332,7 @@ export default function CharacterEditor({ character, onSave }) {
           post_history_instructions: validated.post_history_instructions,
           alternate_greetings: validated.alternate_greetings,
           tags: validated.tags,
+          expertise_keywords: validated.expertise_keywords || [],
           creator: validated.creator,
           character_version: validated.character_version,
           temperature: validated.temperature ?? 0.7,
@@ -268,6 +343,7 @@ export default function CharacterEditor({ character, onSave }) {
           voice_preset: validated.voice_preset,
           voice_sample: validated.voice_sample || null,
           voice_sample_text: validated.voice_sample_text || '',
+          avatar: validated.avatar || null,
           character_book: validated.character_book,
           extensions: validated.extensions
         });
@@ -676,15 +752,27 @@ export default function CharacterEditor({ character, onSave }) {
 
         {/* Category Tags */}
         <div className="form-group">
-          <label>Category Tags (Press Enter or comma to add)</label>
-          <input 
-            type="text" 
-            className="form-input" 
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleAddTag}
-            placeholder="e.g. Detective, Victorian, Mystery, Male, Human..." 
-          />
+          <label>Category Tags (Press Enter, comma, or click Add)</label>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              type="text" 
+              className="form-input" 
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleAddTag}
+              placeholder="e.g. Detective, Victorian, Mystery, Male, Human..." 
+              style={{ flex: 1 }}
+            />
+            <button 
+              type="button" 
+              className="secondary-btn" 
+              onClick={() => addTagsFromInput(tagInput)}
+              style={{ padding: '8px 14px' }}
+              title="Add Tag"
+            >
+              <Plus size={15} /> Add
+            </button>
+          </div>
           {formData.tags.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
               {formData.tags.map((tag, idx) => (
@@ -721,14 +809,26 @@ export default function CharacterEditor({ character, onSave }) {
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Sparkles size={15} color="#10b981" /> Areas of Interest & Knowledge Keywords (Multi-Character Routing)
           </label>
-          <input 
-            type="text" 
-            className="form-input" 
-            value={keywordInput}
-            onChange={(e) => setKeywordInput(e.target.value)}
-            onKeyDown={handleAddKeyword}
-            placeholder="e.g. quantum mechanics, astronomy, forensics, baking, medieval warfare..." 
-          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              type="text" 
+              className="form-input" 
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={handleAddKeyword}
+              placeholder="e.g. quantum mechanics, astronomy, forensics, baking, medieval warfare..." 
+              style={{ flex: 1 }}
+            />
+            <button 
+              type="button" 
+              className="secondary-btn" 
+              onClick={() => addKeywordsFromInput(keywordInput)}
+              style={{ padding: '8px 14px' }}
+              title="Add Keyword"
+            >
+              <Plus size={15} /> Add
+            </button>
+          </div>
           <span style={{ fontSize: '0.74rem', color: '#9ca3af' }}>
             When multiple characters are in a chat room, the system matches conversation topics against these keywords to auto-select this character to respond.
           </span>

@@ -36,6 +36,18 @@
       "Romance",
       "Slow Burn"
     ],
+    "expertise_keywords": [
+      "medicine",
+      "xenobiology",
+      "genetics",
+      "surgery",
+      "pathology",
+      "pharmacology",
+      "bioethics",
+      "medical diagnostics",
+      "neurology",
+      "epidemiology"
+    ],
     "creator": "OpenAI",
     "character_version": "1.0",
     "temperature": 0.7,
@@ -44,6 +56,18 @@
     "repetition_penalty": 1.05,
     "max_tokens": 1024,
     "extensions": {
+      "expertise_keywords": [
+        "medicine",
+        "xenobiology",
+        "genetics",
+        "surgery",
+        "pathology",
+        "pharmacology",
+        "bioethics",
+        "medical diagnostics",
+        "neurology",
+        "epidemiology"
+      ],
       "voice_preset": "female_narrator",
       "temperature": 0.7,
       "top_p": 0.9,

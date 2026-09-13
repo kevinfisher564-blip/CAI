@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import time
@@ -43,10 +44,36 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
     character_book = data.get("character_book") if isinstance(data.get("character_book"), dict) else (payload.get("character_book") if isinstance(payload.get("character_book"), dict) else None)
 
     raw_tags = data.get("tags") or payload.get("tags") or []
-    tags = [str(t).strip() for t in raw_tags if str(t).strip()] if isinstance(raw_tags, list) else []
+    if isinstance(raw_tags, list):
+        tags = [str(t).strip() for t in raw_tags if str(t).strip()]
+    elif isinstance(raw_tags, str) and raw_tags.strip():
+        tags = [t.strip() for t in re.split(r'[,;\n]+', raw_tags) if t.strip()]
+    else:
+        tags = []
 
-    raw_keywords = data.get("expertise_keywords") or payload.get("expertise_keywords") or extensions.get("expertise_keywords") or []
-    expertise_keywords = [str(k).strip() for k in raw_keywords if str(k).strip()] if isinstance(raw_keywords, list) else []
+    raw_keywords = (
+        data.get("expertise_keywords") or
+        payload.get("expertise_keywords") or
+        extensions.get("expertise_keywords") or
+        data.get("areas_of_expertise") or
+        payload.get("areas_of_expertise") or
+        extensions.get("areas_of_expertise") or
+        data.get("knowledge_keywords") or
+        payload.get("knowledge_keywords") or
+        extensions.get("knowledge_keywords") or
+        data.get("keywords") or
+        payload.get("keywords") or
+        extensions.get("keywords") or
+        []
+    )
+    if isinstance(raw_keywords, list):
+        expertise_keywords = [str(k).strip() for k in raw_keywords if str(k).strip()]
+    elif isinstance(raw_keywords, str) and raw_keywords.strip():
+        expertise_keywords = [k.strip() for k in re.split(r'[,;\n]+', raw_keywords) if k.strip()]
+    else:
+        expertise_keywords = []
+
+    extensions["expertise_keywords"] = expertise_keywords
 
     raw_alt_greetings = data.get("alternate_greetings") or payload.get("alternate_greetings") or []
     alternate_greetings = [str(g).strip() for g in raw_alt_greetings if str(g).strip()] if isinstance(raw_alt_greetings, list) else []

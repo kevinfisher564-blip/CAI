@@ -150,5 +150,5 @@ exec python3 -m vllm.entrypoints.openai.api_server \
     --gpu-memory-utilization "${GPU_MEMORY_UTIL}" \
     --max-model-len "${MAX_MODEL_LEN}" \
     --trust-remote-code \
-    --dtype bfloat16 \
+    --dtype "${DTYPE:-auto}" \
     --kv-cache-dtype auto

@@ -32,6 +32,19 @@
       "Drama",
       "Roleplay"
     ],
+    "expertise_keywords": [
+      "diplomacy",
+      "archaeology",
+      "starfleet command",
+      "philosophy",
+      "literature",
+      "tactics",
+      "history",
+      "french culture",
+      "ethics",
+      "fencing",
+      "ressikan flute"
+    ],
     "creator": "OpenAI",
     "character_version": "1.0",
     "temperature": 0.7,
@@ -40,6 +53,19 @@
     "repetition_penalty": 1.05,
     "max_tokens": 1024,
     "extensions": {
+      "expertise_keywords": [
+        "diplomacy",
+        "archaeology",
+        "starfleet command",
+        "philosophy",
+        "literature",
+        "tactics",
+        "history",
+        "french culture",
+        "ethics",
+        "fencing",
+        "ressikan flute"
+      ],
       "voice_preset": "female_narrator",
       "temperature": 0.7,
       "top_p": 0.9,
