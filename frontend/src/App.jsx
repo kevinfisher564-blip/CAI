@@ -88,7 +88,7 @@ export default function App() {
     setViewMode('characters');
   };
 
-  const handleSaveCharacter = async (formData, voiceFile, charId) => {
+  const handleSaveCharacter = async (formData, voiceFile, charId, avatarFile) => {
     try {
       let res;
       if (charId) {
@@ -111,6 +111,21 @@ export default function App() {
       }
 
       let savedChar = await res.json();
+
+      if (avatarFile) {
+        const avatarData = new FormData();
+        avatarData.append('file', avatarFile);
+        const avatarRes = await fetch(`/api/characters/${savedChar.id}/avatar`, {
+          method: 'POST',
+          body: avatarData
+        });
+        if (avatarRes.ok) {
+          const aData = await avatarRes.json();
+          savedChar.avatar = aData.avatar;
+        } else {
+          console.error('Failed to upload avatar:', await avatarRes.text());
+        }
+      }
 
       if (voiceFile) {
         const voiceData = new FormData();

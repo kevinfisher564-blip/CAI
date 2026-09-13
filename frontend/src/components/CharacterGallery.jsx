@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { UserPlus, MessageSquare, Edit3, FileUp } from 'lucide-react';
-import { validateAndParseCharacterJson } from '../utils/characterValidator';
+import { validateAndParseCharacterJson, getAvatarUrl } from '../utils/characterValidator';
 
 export default function CharacterGallery({ characters, selectedId, onSelect, onEdit, onCreateNew, onImport }) {
   const fileInputRef = useRef(null);
@@ -72,6 +72,7 @@ export default function CharacterGallery({ characters, selectedId, onSelect, onE
       {characters.map((char) => {
         const isSelected = char.id === selectedId;
         const initial = char.name ? char.name[0].toUpperCase() : 'C';
+        const avatarUrl = getAvatarUrl(char.avatar);
 
         return (
           <div 
@@ -82,7 +83,17 @@ export default function CharacterGallery({ characters, selectedId, onSelect, onE
           >
             <div className="char-item-info">
               <div className="avatar-circle">
-                {initial}
+                {avatarUrl ? (
+                  <img 
+                    src={avatarUrl} 
+                    alt={char.name} 
+                    className="avatar-img"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                <span style={{ display: avatarUrl ? 'none' : 'block' }}>{initial}</span>
               </div>
               <div style={{ overflow: 'hidden' }}>
                 <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

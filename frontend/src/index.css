@@ -182,6 +182,17 @@ h1, h2, h3, .brand-font {
   color: #fff;
   font-size: 1.1rem;
   flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+  user-select: none;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
 }
 
 /* Main Workspace */

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Upload, Volume2, Download, FileUp, AlertCircle, CheckCircle2, Plus, Trash2, Tag, BookOpen, User, Info, Sliders, Sparkles } from 'lucide-react';
-import { validateAndParseCharacterJson } from '../utils/characterValidator';
+import { Save, Upload, Volume2, Download, FileUp, AlertCircle, CheckCircle2, Plus, Trash2, Tag, BookOpen, User, Info, Sliders, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { validateAndParseCharacterJson, getAvatarUrl } from '../utils/characterValidator';
 
 export default function CharacterEditor({ character, onSave }) {
   const [formData, setFormData] = useState({
@@ -36,15 +36,19 @@ export default function CharacterEditor({ character, onSave }) {
   const [keywordInput, setKeywordInput] = useState('');
   const [newAltGreeting, setNewAltGreeting] = useState('');
   const [voiceFile, setVoiceFile] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState(null);
   const [validationSuccess, setValidationSuccess] = useState(null);
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     setValidationError(null);
     setValidationSuccess(null);
     setVoiceFile(null);
+    setAvatarFile(null);
     if (character) {
       const charData = character.data && typeof character.data === 'object' ? character.data : character;
       const desc = charData.description || charData.summary || character.description || character.summary || '';
@@ -87,6 +91,9 @@ export default function CharacterEditor({ character, onSave }) {
       const rawAlts = charData.alternate_greetings || character.alternate_greetings || [];
       const parsedAlts = Array.isArray(rawAlts) ? rawAlts : [];
 
+      const initialAvatar = charData.avatar || character.avatar || null;
+      setAvatarPreview(getAvatarUrl(initialAvatar));
+
       setFormData({
         name: charData.name || character.name || '',
         description: desc,
@@ -111,14 +118,16 @@ export default function CharacterEditor({ character, onSave }) {
         voice_preset: charData.voice_preset || character.voice_preset || 'female_narrator',
         voice_sample: charData.voice_sample || character.voice_sample || null,
         voice_sample_text: charData.voice_sample_text || character.voice_sample_text || '',
-        avatar: charData.avatar || character.avatar || null,
+        avatar: initialAvatar,
         character_book: charData.character_book || character.character_book || null,
         extensions: {
           ...extensions,
-          expertise_keywords: parsedKeywords
+          expertise_keywords: parsedKeywords,
+          avatar: initialAvatar
         }
       });
     } else {
+      setAvatarPreview(null);
       setFormData({
         name: '',
         description: '',
@@ -348,6 +357,9 @@ export default function CharacterEditor({ character, onSave }) {
           extensions: validated.extensions
         });
 
+        setAvatarFile(null);
+        setAvatarPreview(getAvatarUrl(validated.avatar));
+
         setValidationSuccess(
           `Successfully validated & imported "${validated.name}" (${validated.specDetected})`
         );
@@ -365,6 +377,38 @@ export default function CharacterEditor({ character, onSave }) {
     };
 
     reader.readAsText(file);
+  };
+
+  const handleAvatarSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAvatarPreview(event.target?.result);
+    };
+    reader.readAsDataURL(file);
+    setFormData((prev) => ({ ...prev, avatar: file.name }));
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (character?.id && (character.avatar || formData.avatar)) {
+      try {
+        await fetch(`/api/characters/${character.id}/avatar`, { method: 'DELETE' });
+      } catch (err) {
+        console.error('Failed to delete avatar on server:', err);
+      }
+    }
+    if (character) {
+      character.avatar = null;
+    }
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setFormData((prev) => ({ ...prev, avatar: null }));
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
+    }
   };
 
   const handleRemoveVoiceSample = async () => {
@@ -391,7 +435,7 @@ export default function CharacterEditor({ character, onSave }) {
     }
     setSaving(true);
     try {
-      await onSave(formData, voiceFile, character?.id);
+      await onSave(formData, voiceFile, character?.id, avatarFile);
       setValidationSuccess('Character card saved successfully!');
     } catch (err) {
       setValidationError(err.message || 'Failed to save character.');
@@ -457,6 +501,102 @@ export default function CharacterEditor({ character, onSave }) {
       )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        {/* Character Avatar Banner */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 'var(--radius-md)',
+          padding: '16px 20px',
+          flexWrap: 'wrap'
+        }}>
+          {/* Avatar Visual Preview */}
+          <div style={{ position: 'relative' }}>
+            <div 
+              className="avatar-circle" 
+              style={{ 
+                width: '74px', 
+                height: '74px', 
+                fontSize: '1.8rem',
+                border: '2px solid rgba(99, 102, 241, 0.5)',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
+              }}
+            >
+              {avatarPreview ? (
+                <img 
+                  src={avatarPreview} 
+                  alt={formData.name || 'Avatar'} 
+                  className="avatar-img"
+                  onError={() => setAvatarPreview(null)}
+                />
+              ) : null}
+              <span style={{ display: avatarPreview ? 'none' : 'block' }}>
+                {formData.name ? formData.name[0].toUpperCase() : 'C'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: '240px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <ImageIcon size={17} color="#818cf8" />
+              <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Character Avatar</span>
+              <span style={{ fontSize: '0.72rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 8px', borderRadius: '10px' }}>
+                Auto-Scales Any Size / Resolution
+              </span>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#9ca3af', marginBottom: '10px', lineHeight: 1.4 }}>
+              Upload any image file (PNG, JPG, WebP, GIF, etc.). The server automatically center-crops to 1:1, resizes to HD 512×512, and optimizes for gallery and chat display.
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <input 
+                type="file" 
+                ref={avatarInputRef}
+                accept="image/*" 
+                style={{ display: 'none' }}
+                onChange={handleAvatarSelect}
+              />
+              <button 
+                type="button" 
+                className="secondary-btn" 
+                onClick={() => avatarInputRef.current?.click()}
+                style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+              >
+                <Upload size={14} /> {avatarPreview ? 'Change Avatar' : 'Upload Avatar'}
+              </button>
+
+              {(avatarPreview || formData.avatar || avatarFile) && (
+                <button 
+                  type="button" 
+                  onClick={handleRemoveAvatar}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Trash2 size={13} /> Remove
+                </button>
+              )}
+
+              {avatarFile && (
+                <span style={{ fontSize: '0.75rem', color: '#34d399' }}>
+                  Selected: {avatarFile.name} ({(avatarFile.size / 1024).toFixed(0)} KB) — will save on submit
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Core Info */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px' }}>
           <div className="form-group">

@@ -248,3 +248,22 @@ export function validateAndParseCharacterJson(input) {
     specDetected
   };
 }
+
+/**
+ * Resolves a character avatar string/filename/data URI into a valid image URL for display.
+ * @param {string|null|undefined} avatar 
+ * @returns {string|null}
+ */
+export function getAvatarUrl(avatar) {
+  if (!avatar || typeof avatar !== 'string') return null;
+  const trimmed = avatar.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/static/')) {
+    return trimmed;
+  }
+  return `/static/avatars/${trimmed}`;
+}
+

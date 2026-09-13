@@ -3,6 +3,7 @@ import re
 import json
 import shutil
 import time
+from PIL import Image, ImageOps
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import List, Optional, Dict, Any
 from app.models.character import CharacterCard, CharacterCreateRequest, CharacterUpdateRequest
@@ -14,11 +15,56 @@ from app.config import (
     DEFAULT_MAX_TOKENS,
     CHARACTERS_DIR,
     VOICES_DIR,
+    AVATARS_DIR,
 )
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 os.makedirs(CHARACTERS_DIR, exist_ok=True)
 os.makedirs(VOICES_DIR, exist_ok=True)
+os.makedirs(AVATARS_DIR, exist_ok=True)
+
+def process_and_save_avatar(file_obj, card_id: str, max_dimension: int = 512) -> str:
+    """
+    Takes an uploaded image file of any size, resolution, or format,
+    corrects EXIF orientation, center-crops to a 1:1 square,
+    scales down using high-quality LANCZOS resampling, and saves an optimized PNG.
+    """
+    try:
+        img = Image.open(file_obj)
+        img = ImageOps.exif_transpose(img)
+    except Exception as e:
+        raise ValueError(f"Invalid image file: {str(e)}")
+
+    # Handle transparent / alpha images cleanly
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        img = img.convert("RGBA")
+    else:
+        img = img.convert("RGB")
+
+    width, height = img.size
+    min_dim = min(width, height)
+    left = (width - min_dim) // 2
+    top = (height - min_dim) // 2
+    right = left + min_dim
+    bottom = top + min_dim
+
+    # 1:1 Center crop
+    cropped = img.crop((left, top, right, bottom))
+
+    # Resize to standard max avatar dimension
+    target_dim = min(min_dim, max_dimension)
+    if min_dim != target_dim:
+        resample_filter = getattr(Image, "Resampling", Image).LANCZOS
+        resized = cropped.resize((target_dim, target_dim), resample=resample_filter)
+    else:
+        resized = cropped
+
+    os.makedirs(AVATARS_DIR, exist_ok=True)
+    filename = f"{card_id}_avatar_{int(time.time())}.png"
+    out_path = os.path.join(AVATARS_DIR, filename)
+
+    resized.save(out_path, format="PNG", optimize=True)
+    return filename
 
 def parse_character_data(payload: dict, file_id: Optional[str] = None) -> CharacterCard:
     if not isinstance(payload, dict):
@@ -345,5 +391,74 @@ async def delete_voice_sample(card_id: str):
         json.dump(card.model_dump(), f, indent=2)
         
     return {"status": "success", "voice_sample": None, "voice_sample_text": None}
+
+@router.post("/{card_id}/avatar")
+async def upload_avatar(card_id: str, file: UploadFile = File(...)):
+    filepath = find_character_filepath(card_id)
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        raw_data = json.load(f)
+    card = parse_character_data(raw_data, file_id=os.path.splitext(os.path.basename(filepath))[0])
+
+    # Clean up any existing avatars for this card_id
+    dirs_to_clean = [AVATARS_DIR, os.path.join(CHARACTERS_DIR, "avatars"), CHARACTERS_DIR]
+    for vdir in dirs_to_clean:
+        if os.path.exists(vdir):
+            for fname in os.listdir(vdir):
+                if fname.startswith(f"{card_id}_avatar_") or (card.avatar and fname == card.avatar):
+                    try:
+                        os.remove(os.path.join(vdir, fname))
+                    except Exception:
+                        pass
+
+    try:
+        avatar_filename = process_and_save_avatar(file.file, card_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+    card.avatar = avatar_filename
+    if isinstance(card.extensions, dict):
+        card.extensions["avatar"] = avatar_filename
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(card.model_dump(), f, indent=2)
+
+    return {
+        "status": "success",
+        "avatar": avatar_filename,
+        "avatar_url": f"/static/avatars/{avatar_filename}"
+    }
+
+@router.delete("/{card_id}/avatar")
+async def delete_avatar(card_id: str):
+    filepath = find_character_filepath(card_id)
+    if not filepath or not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        raw_data = json.load(f)
+    card = parse_character_data(raw_data, file_id=os.path.splitext(os.path.basename(filepath))[0])
+
+    dirs_to_clean = [AVATARS_DIR, os.path.join(CHARACTERS_DIR, "avatars"), CHARACTERS_DIR]
+    for vdir in dirs_to_clean:
+        if os.path.exists(vdir):
+            for fname in os.listdir(vdir):
+                if fname.startswith(f"{card_id}_avatar_") or (card.avatar and fname == card.avatar):
+                    try:
+                        os.remove(os.path.join(vdir, fname))
+                    except Exception:
+                        pass
+
+    card.avatar = None
+    if isinstance(card.extensions, dict) and "avatar" in card.extensions:
+        card.extensions["avatar"] = None
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(card.model_dump(), f, indent=2)
+
+    return {"status": "success", "avatar": None}
+
 
 

@@ -64,6 +64,21 @@ VOICES_DIR: str = resolve_dir_path(
     _default_voices
 )
 
+# Avatars Directory
+_default_avatars = (
+    os.path.join(ASSETS_DIR, "avatars")
+    if ASSETS_DIR and os.path.isdir(os.path.join(ASSETS_DIR, "avatars"))
+    else (
+        os.path.join(CHARACTERS_DIR, "avatars")
+        if os.path.exists(os.path.join(CHARACTERS_DIR, "avatars")) or not ASSETS_DIR
+        else (os.path.join(ASSETS_DIR, "avatars") if ASSETS_DIR else os.path.join(CHARACTERS_DIR, "avatars"))
+    )
+)
+AVATARS_DIR: str = resolve_dir_path(
+    ["AVATARS_DIR", "AVATARS_PATH", "AVATAR_DIR", "AVATAR_PATH"],
+    _default_avatars
+)
+
 # Scenarios Directory
 _default_scenarios = (
     os.path.join(ASSETS_DIR, "scenarios")

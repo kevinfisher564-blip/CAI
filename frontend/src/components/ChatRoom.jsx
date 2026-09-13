@@ -22,6 +22,7 @@ import {
   Sliders
 } from 'lucide-react';
 import { logSpeakerSelection } from '../utils/debugLogger';
+import { getAvatarUrl } from '../utils/characterValidator';
 
 export default function ChatRoom({ 
   characters = [], 
@@ -609,24 +610,39 @@ export default function ChatRoom({
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
           {/* Avatars Stack */}
           <div style={{ display: 'flex', alignItems: 'center', marginLeft: activeCharacters.length > 1 ? '4px' : 0 }}>
-            {activeCharacters.slice(0, 4).map((char, idx) => (
-              <div 
-                key={char.id} 
-                className="avatar-circle" 
-                style={{ 
-                  width: '38px', 
-                  height: '38px', 
-                  fontSize: '0.9rem',
-                  marginLeft: idx > 0 ? '-12px' : 0,
-                  border: '2px solid var(--bg-dark)',
-                  zIndex: 4 - idx,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
-                }}
-                title={`${char.name}${char.expertise_keywords?.length ? ` (${char.expertise_keywords.join(', ')})` : ''}`}
-              >
-                {char.name ? char.name[0].toUpperCase() : 'C'}
-              </div>
-            ))}
+            {activeCharacters.slice(0, 4).map((char, idx) => {
+              const avatarUrl = getAvatarUrl(char.avatar);
+              return (
+                <div 
+                  key={char.id} 
+                  className="avatar-circle" 
+                  style={{ 
+                    width: '38px', 
+                    height: '38px', 
+                    fontSize: '0.9rem',
+                    marginLeft: idx > 0 ? '-12px' : 0,
+                    border: '2px solid var(--bg-dark)',
+                    zIndex: 4 - idx,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
+                  }}
+                  title={`${char.name}${char.expertise_keywords?.length ? ` (${char.expertise_keywords.join(', ')})` : ''}`}
+                >
+                  {avatarUrl ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt={char.name} 
+                      className="avatar-img"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : null}
+                  <span style={{ display: avatarUrl ? 'none' : 'block' }}>
+                    {char.name ? char.name[0].toUpperCase() : 'C'}
+                  </span>
+                </div>
+              );
+            })}
             {activeCharacters.length > 4 && (
               <div 
                 className="avatar-circle" 
@@ -918,20 +934,37 @@ export default function ChatRoom({
             );
           }
 
-          const isUser = msg.role === 'user';
+            const isUser = msg.role === 'user';
+            const msgChar = !isUser && msg.sender ? (
+              activeCharacters.find((c) => c.id === msg.character_id || c.name === msg.sender) ||
+              allCharacters.find((c) => c.id === msg.character_id || c.name === msg.sender)
+            ) : null;
+            const msgAvatarUrl = getAvatarUrl(msgChar?.avatar || msg.avatar);
 
-          return (
-            <div key={idx} className={`message-bubble message-${msg.role}`}>
-              {!isUser && msg.sender && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div className="avatar-circle" style={{ width: '24px', height: '24px', fontSize: '0.72rem', background: '#6366f1' }}>
-                      {msg.sender[0].toUpperCase()}
+            return (
+              <div key={idx} className={`message-bubble message-${msg.role}`}>
+                {!isUser && msg.sender && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div className="avatar-circle" style={{ width: '24px', height: '24px', fontSize: '0.72rem', background: '#6366f1' }}>
+                        {msgAvatarUrl ? (
+                          <img 
+                            src={msgAvatarUrl} 
+                            alt={msg.sender} 
+                            className="avatar-img"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                        <span style={{ display: msgAvatarUrl ? 'none' : 'block' }}>
+                          {msg.sender[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#818cf8' }}>
+                        {msg.sender}
+                      </span>
                     </div>
-                    <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#818cf8' }}>
-                      {msg.sender}
-                    </span>
-                  </div>
 
                   {msg.isInitialGreeting && (() => {
                     const charObj = activeCharacters.find((c) => c.id === msg.character_id);
@@ -1064,33 +1097,48 @@ export default function ChatRoom({
             <AtSign size={12} color="#818cf8" /> Mention Character in Room:
           </div>
           <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-            {filteredMentionCandidates.map((c, idx) => (
-              <div
-                key={c.id}
-                onClick={() => insertMention(c.name)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  background: idx === selectedMentionIdx ? 'rgba(99, 102, 241, 0.18)' : 'transparent',
-                  borderLeft: idx === selectedMentionIdx ? '3px solid #6366f1' : '3px solid transparent'
-                }}
-              >
-                <div className="avatar-circle" style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>
-                  {c.name[0].toUpperCase()}
+            {filteredMentionCandidates.map((c, idx) => {
+              const candAvatar = getAvatarUrl(c.avatar);
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => insertMention(c.name)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    background: idx === selectedMentionIdx ? 'rgba(99, 102, 241, 0.18)' : 'transparent',
+                    borderLeft: idx === selectedMentionIdx ? '3px solid #6366f1' : '3px solid transparent'
+                  }}
+                >
+                  <div className="avatar-circle" style={{ width: '22px', height: '22px', fontSize: '0.7rem' }}>
+                    {candAvatar ? (
+                      <img 
+                        src={candAvatar} 
+                        alt={c.name} 
+                        className="avatar-img"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    <span style={{ display: candAvatar ? 'none' : 'block' }}>
+                      {c.name[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#f3f4f6' }}>{c.name}</div>
+                    {c.expertise_keywords && c.expertise_keywords.length > 0 && (
+                      <div style={{ fontSize: '0.72rem', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.expertise_keywords.slice(0, 3).join(', ')}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#f3f4f6' }}>{c.name}</div>
-                  {c.expertise_keywords && c.expertise_keywords.length > 0 && (
-                    <div style={{ fontSize: '0.72rem', color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.expertise_keywords.slice(0, 3).join(', ')}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1209,6 +1257,7 @@ export default function ChatRoom({
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px', paddingRight: '4px' }}>
               {allCharacters.map((char) => {
                 const isActive = activeCharacters.some((c) => c.id === char.id);
+                const participantAvatar = getAvatarUrl(char.avatar);
                 return (
                   <div
                     key={char.id}
@@ -1227,7 +1276,19 @@ export default function ChatRoom({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div className="avatar-circle" style={{ width: '34px', height: '34px', fontSize: '0.85rem' }}>
-                        {char.name ? char.name[0].toUpperCase() : 'C'}
+                        {participantAvatar ? (
+                          <img 
+                            src={participantAvatar} 
+                            alt={char.name} 
+                            className="avatar-img"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                        <span style={{ display: participantAvatar ? 'none' : 'block' }}>
+                          {char.name ? char.name[0].toUpperCase() : 'C'}
+                        </span>
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f3f4f6' }}>{char.name}</div>

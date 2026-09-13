@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.config import CHARACTERS_DIR, VOICES_DIR, SCENARIOS_DIR
+from app.config import CHARACTERS_DIR, VOICES_DIR, SCENARIOS_DIR, AVATARS_DIR
 from app.api.characters import router as characters_router
 from app.api.scenarios import router as scenarios_router
 from app.api.chat import router as chat_router
@@ -42,10 +42,16 @@ app.include_router(voice_router)
 os.makedirs(CHARACTERS_DIR, exist_ok=True)
 os.makedirs(VOICES_DIR, exist_ok=True)
 os.makedirs(SCENARIOS_DIR, exist_ok=True)
+os.makedirs(AVATARS_DIR, exist_ok=True)
 
 # Mount dedicated voice sample route if VOICES_DIR is outside or distinct from CHARACTERS_DIR/voice_samples
 if os.path.abspath(VOICES_DIR) != os.path.abspath(os.path.join(CHARACTERS_DIR, "voice_samples")):
     app.mount("/static/characters/voice_samples", StaticFiles(directory=VOICES_DIR), name="voice_samples_static")
+
+# Mount dedicated avatars route
+app.mount("/static/avatars", StaticFiles(directory=AVATARS_DIR), name="avatars_static")
+if os.path.abspath(AVATARS_DIR) != os.path.abspath(os.path.join(CHARACTERS_DIR, "avatars")):
+    app.mount("/static/characters/avatars", StaticFiles(directory=AVATARS_DIR), name="characters_avatars_static")
 
 # Mount characters directory for static avatar & asset serving
 app.mount("/static/characters", StaticFiles(directory=CHARACTERS_DIR), name="characters_static")
@@ -62,7 +68,8 @@ def health_check():
         "directories": {
             "characters": CHARACTERS_DIR,
             "voices": VOICES_DIR,
-            "scenarios": SCENARIOS_DIR
+            "scenarios": SCENARIOS_DIR,
+            "avatars": AVATARS_DIR
         }
     }
 
