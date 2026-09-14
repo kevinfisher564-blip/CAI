@@ -122,6 +122,8 @@ export default function App() {
         if (avatarRes.ok) {
           const aData = await avatarRes.json();
           savedChar.avatar = aData.avatar;
+          if (!savedChar.extensions || typeof savedChar.extensions !== 'object') savedChar.extensions = {};
+          savedChar.extensions.avatar = aData.avatar;
         } else {
           console.error('Failed to upload avatar:', await avatarRes.text());
         }
@@ -141,6 +143,9 @@ export default function App() {
           const vData = await voiceRes.json();
           savedChar.voice_sample = vData.voice_sample;
           savedChar.voice_sample_text = vData.voice_sample_text;
+          if (!savedChar.extensions || typeof savedChar.extensions !== 'object') savedChar.extensions = {};
+          savedChar.extensions.voice_sample = vData.voice_sample;
+          savedChar.extensions.voice_sample_text = vData.voice_sample_text;
         } else {
           console.error('Failed to upload voice sample:', await voiceRes.text());
         }

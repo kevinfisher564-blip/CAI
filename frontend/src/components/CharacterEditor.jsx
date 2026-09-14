@@ -253,12 +253,25 @@ export default function CharacterEditor({ character, onSave }) {
   };
 
   const handleDownloadJson = () => {
-    // Structure 100% compliant Tavern Card V2 JSON with voice & asset metadata
+    // Structure 100% compliant Tavern Card V2 JSON with strictly synchronized asset metadata
     const desc = formData.description || formData.summary || '';
     const voicePreset = formData.voice_preset || character?.voice_preset || 'female_narrator';
     const voiceSample = formData.voice_sample || character?.voice_sample || null;
     const voiceSampleText = formData.voice_sample_text || character?.voice_sample_text || '';
     const avatar = formData.avatar || character?.avatar || null;
+
+    // Strip out any stale extension keys before reconstructing canonical extensions
+    const cleanExtensions = { ...(formData.extensions || {}) };
+    delete cleanExtensions.voice_sample;
+    delete cleanExtensions.voice_sample_text;
+    delete cleanExtensions.avatar;
+    delete cleanExtensions.voice_preset;
+    delete cleanExtensions.expertise_keywords;
+    delete cleanExtensions.temperature;
+    delete cleanExtensions.top_p;
+    delete cleanExtensions.min_p;
+    delete cleanExtensions.repetition_penalty;
+    delete cleanExtensions.max_tokens;
 
     const cardData = {
       spec: 'chara_card_v2',
@@ -289,7 +302,7 @@ export default function CharacterEditor({ character, onSave }) {
         voice_sample_text: voiceSampleText,
         avatar: avatar,
         extensions: {
-          ...formData.extensions,
+          ...cleanExtensions,
           expertise_keywords: formData.expertise_keywords || [],
           voice_preset: voicePreset,
           voice_sample: voiceSample,
@@ -389,7 +402,6 @@ export default function CharacterEditor({ character, onSave }) {
       setAvatarPreview(event.target?.result);
     };
     reader.readAsDataURL(file);
-    setFormData((prev) => ({ ...prev, avatar: file.name }));
   };
 
   const handleRemoveAvatar = async () => {

@@ -216,6 +216,17 @@ export function validateAndParseCharacterJson(input) {
   const rawMaxTokens = data.max_tokens ?? data.max_response_tokens ?? parsed.max_tokens ?? parsed.max_response_tokens ?? extensions.max_tokens ?? extensions.max_response_tokens;
   const max_tokens = rawMaxTokens !== undefined && rawMaxTokens !== null && !isNaN(Number(rawMaxTokens)) ? parseInt(rawMaxTokens, 10) : 1024;
 
+  // Mirror all canonical attributes into extensions for 100% interoperability (Option A)
+  extensions['avatar'] = avatar;
+  extensions['voice_sample'] = voice_sample;
+  extensions['voice_sample_text'] = voice_sample_text || null;
+  extensions['voice_preset'] = voice_preset;
+  extensions['temperature'] = temperature;
+  extensions['top_p'] = top_p;
+  extensions['min_p'] = min_p;
+  extensions['repetition_penalty'] = repetition_penalty;
+  extensions['max_tokens'] = max_tokens;
+
   return {
     spec: 'chara_card_v2',
     spec_version: '2.0',

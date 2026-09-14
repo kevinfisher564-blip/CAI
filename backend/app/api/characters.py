@@ -135,6 +135,23 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
 
     char_id = payload.get("id") or data.get("id") or file_id
 
+    # Canonical asset metadata extraction
+    avatar_val = payload.get("avatar") or data.get("avatar") or extensions.get("avatar") or None
+    voice_sample_val = payload.get("voice_sample") or data.get("voice_sample") or extensions.get("voice_sample") or None
+    voice_sample_text_val = str(data.get("voice_sample_text") or payload.get("voice_sample_text") or extensions.get("voice_sample_text") or "").strip() or None
+
+    # Mirror all canonical attributes into extensions for 100% interoperability (Option A)
+    extensions["avatar"] = avatar_val
+    extensions["voice_sample"] = voice_sample_val
+    extensions["voice_sample_text"] = voice_sample_text_val
+    extensions["voice_preset"] = voice_preset
+    extensions["expertise_keywords"] = expertise_keywords
+    extensions["temperature"] = float(temperature) if temperature is not None else DEFAULT_TEMPERATURE
+    extensions["top_p"] = float(top_p) if top_p is not None else DEFAULT_TOP_P
+    extensions["min_p"] = float(min_p) if min_p is not None else DEFAULT_MIN_P
+    extensions["repetition_penalty"] = float(repetition_penalty) if repetition_penalty is not None else DEFAULT_REPETITION_PENALTY
+    extensions["max_tokens"] = int(max_tokens) if max_tokens is not None else DEFAULT_MAX_TOKENS
+
     card_kwargs = {
         "spec": "chara_card_v2",
         "spec_version": "2.0",
@@ -161,9 +178,9 @@ def parse_character_data(payload: dict, file_id: Optional[str] = None) -> Charac
         "creator": str(data.get("creator") or payload.get("creator") or "User").strip(),
         "character_version": str(data.get("character_version") or payload.get("character_version") or "1.0").strip(),
         "extensions": extensions,
-        "avatar": payload.get("avatar") or data.get("avatar"),
-        "voice_sample": payload.get("voice_sample") or data.get("voice_sample"),
-        "voice_sample_text": str(data.get("voice_sample_text") or payload.get("voice_sample_text") or "").strip() or None
+        "avatar": avatar_val,
+        "voice_sample": voice_sample_val,
+        "voice_sample_text": voice_sample_text_val
     }
     if char_id:
         card_kwargs["id"] = str(char_id)
@@ -236,6 +253,18 @@ async def import_character(payload: dict):
 @router.post("", response_model=CharacterCard)
 def create_character(req: CharacterCreateRequest):
     desc = req.description or req.summary or ""
+    extensions = dict(req.extensions) if isinstance(req.extensions, dict) else {}
+    extensions["avatar"] = req.avatar
+    extensions["voice_sample"] = req.voice_sample
+    extensions["voice_sample_text"] = req.voice_sample_text
+    extensions["voice_preset"] = req.voice_preset or "female_narrator"
+    extensions["expertise_keywords"] = req.expertise_keywords or []
+    extensions["temperature"] = req.temperature if req.temperature is not None else DEFAULT_TEMPERATURE
+    extensions["top_p"] = req.top_p if req.top_p is not None else DEFAULT_TOP_P
+    extensions["min_p"] = req.min_p if req.min_p is not None else DEFAULT_MIN_P
+    extensions["repetition_penalty"] = req.repetition_penalty if req.repetition_penalty is not None else DEFAULT_REPETITION_PENALTY
+    extensions["max_tokens"] = req.max_tokens if req.max_tokens is not None else DEFAULT_MAX_TOKENS
+
     card = CharacterCard(
         name=req.name,
         description=desc,
@@ -262,7 +291,7 @@ def create_character(req: CharacterCreateRequest):
         avatar=req.avatar,
         voice_sample=req.voice_sample,
         voice_sample_text=req.voice_sample_text,
-        extensions=req.extensions or {}
+        extensions=extensions
     )
     filepath = os.path.join(CHARACTERS_DIR, f"{card.id}.json")
     with open(filepath, "w", encoding="utf-8") as f:
@@ -285,8 +314,13 @@ def update_character(card_id: str, req: CharacterUpdateRequest):
     elif "summary" in update_data and "description" not in update_data:
         update_data["description"] = update_data["summary"]
 
+    if not isinstance(card.extensions, dict):
+        card.extensions = {}
+
     for key, value in update_data.items():
         setattr(card, key, value)
+        if key in ["avatar", "voice_sample", "voice_sample_text", "voice_preset", "expertise_keywords", "temperature", "top_p", "min_p", "repetition_penalty", "max_tokens"]:
+            card.extensions[key] = value
             
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
@@ -345,6 +379,11 @@ async def upload_voice_sample(
     if voice_sample_text is not None:
         card.voice_sample_text = voice_sample_text.strip() or None
     
+    if not isinstance(card.extensions, dict):
+        card.extensions = {}
+    card.extensions["voice_sample"] = sample_filename
+    card.extensions["voice_sample_text"] = card.voice_sample_text
+    
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
         
@@ -364,6 +403,9 @@ async def delete_voice_sample(card_id: str):
     old_sample = card.voice_sample
     card.voice_sample = None
     card.voice_sample_text = None
+    if isinstance(card.extensions, dict):
+        card.extensions["voice_sample"] = None
+        card.extensions["voice_sample_text"] = None
     
     dirs_to_clean = [voice_dir]
     fallback_vdir = os.path.join(CHARACTERS_DIR, "voice_samples")
@@ -419,8 +461,9 @@ async def upload_avatar(card_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(ve))
 
     card.avatar = avatar_filename
-    if isinstance(card.extensions, dict):
-        card.extensions["avatar"] = avatar_filename
+    if not isinstance(card.extensions, dict):
+        card.extensions = {}
+    card.extensions["avatar"] = avatar_filename
 
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(card.model_dump(), f, indent=2)
