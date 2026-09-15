@@ -93,6 +93,19 @@ class SpeakerSelector:
 
         return score
 
+    def _extract_text_from_content(self, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            texts = []
+            for b in content:
+                if isinstance(b, dict) and b.get("type") == "text":
+                    texts.append(b.get("text", ""))
+                elif isinstance(b, str):
+                    texts.append(b)
+            return " ".join(texts)
+        return str(content or "")
+
     def select_next_speaker(
         self,
         messages: List[Dict[str, Any]],
@@ -110,7 +123,7 @@ class SpeakerSelector:
             return room_characters[0]
 
         latest_msg = messages[-1] if messages else {}
-        latest_text = str(latest_msg.get("content") or "")
+        latest_text = self._extract_text_from_content(latest_msg.get("content"))
 
         # 1. Determine effective last speaker ID (from parameter or by inspecting the latest turn)
         effective_last_speaker_id = str(last_speaker_id) if last_speaker_id else None
@@ -147,7 +160,7 @@ class SpeakerSelector:
             # Score preceding 2 messages with lower weight
             older_score = 0.0
             if len(messages) > 1:
-                older_contexts = [str(m.get("content") or "") for m in messages[-3:-1]]
+                older_contexts = [self._extract_text_from_content(m.get("content")) for m in messages[-3:-1]]
                 older_score = self.calculate_topic_score(" ".join(older_contexts), char, is_latest_turn=False)
 
             total_score = latest_score + (older_score * 0.5)

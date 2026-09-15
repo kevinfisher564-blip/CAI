@@ -266,19 +266,28 @@ export default function App() {
 
   // Send message for a specific character turn
   const handleSendMessage = async (text, imagePreview, previousMessages, respondingChar, roomCharacters, scenario) => {
-    let content = text;
-    if (imagePreview) {
-      content = [
-        { type: 'text', text: text || 'What do you see in this image?' },
-        { type: 'image_url', image_url: { url: imagePreview } }
-      ];
-    }
+    // Ensure all turns with images are cleanly formatted for backend multimodal payload
+    const formattedMessages = (previousMessages || []).map((msg, idx) => {
+      const isLatest = idx === previousMessages.length - 1;
+      const img = msg.imagePreview || (isLatest ? imagePreview : null);
+      if (img && msg.role === 'user') {
+        const textContent = (typeof msg.content === 'string' && msg.content.trim()) ? msg.content : (text || 'What do you see in this image?');
+        return {
+          ...msg,
+          imagePreview: img,
+          content: [
+            { type: 'text', text: textContent },
+            { type: 'image_url', image_url: { url: img } }
+          ]
+        };
+      }
+      return msg;
+    });
 
-    // previousMessages already includes the user turn (and previous bot turns) from ChatRoom
     const payload = {
       character_id: respondingChar.id,
       character_card: respondingChar,
-      messages: previousMessages,
+      messages: formattedMessages,
       scenario: scenario || undefined,
       room_characters: roomCharacters || undefined
     };

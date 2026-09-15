@@ -144,6 +144,8 @@ echo " Context Limit: ${MAX_MODEL_LEN} tokens"
 echo " FlashInfer Sampler Disabled: TRUE"
 echo "=========================================================="
 
+LIMIT_MM_PER_PROMPT=${LIMIT_MM_PER_PROMPT:-'{"image": 4}'}
+
 exec python3 -m vllm.entrypoints.openai.api_server \
     --model "${MODEL_NAME}" \
     --port "${PORT}" \
@@ -151,4 +153,6 @@ exec python3 -m vllm.entrypoints.openai.api_server \
     --max-model-len "${MAX_MODEL_LEN}" \
     --trust-remote-code \
     --dtype "${DTYPE:-auto}" \
-    --kv-cache-dtype auto
+    --kv-cache-dtype auto \
+    --limit-mm-per-prompt "${LIMIT_MM_PER_PROMPT}"
+
