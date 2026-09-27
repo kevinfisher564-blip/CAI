@@ -48,8 +48,9 @@ class ContextManager:
                 cleaned_scenario = self.replace_macros(raw_scenario, char_name, user_name)
                 system_blocks.append(f"=== WORLD SCENARIO: {scenario_title} ===\n{cleaned_scenario}")
 
-        # 2. Room Participants Awareness
-        if room_characters and len(room_characters) > 1:
+        # 2. Room Participants Awareness & Group Conversation Rules
+        is_multiroom = bool(room_characters and len(room_characters) > 1)
+        if is_multiroom:
             participant_details = [f"{user_name} (User / Human Conversation Partner)"]
             for c in room_characters:
                 c_name = c.get("name", "Character")
@@ -64,7 +65,12 @@ class ContextManager:
                 f"The following individuals are present in this group conversation:\n- " + "\n- ".join(participant_details) + "\n\n"
                 f"- Messages in the conversation history are prefixed with the speaker's name (e.g. '{user_name}: ...' or '<CharacterName>: ...').\n"
                 f"- Pay careful attention to who asked or spoke each line.\n"
-                f"- Stay fully in character as {char_name}. Speak directly to {user_name} when addressed by {user_name}, or reply naturally to the other characters in the room."
+                f"- Stay fully in character as {char_name}.\n\n"
+                f"=== GROUP CONVERSATION RULES ===\n"
+                f"- Address only ONE person per turn (either {user_name} or one specific character). Never split your reply between multiple people or try to address the whole room.\n"
+                f"- Limit your spoken reply strictly to 1-2 sentences. Make your point, ask your question, or react, then immediately pass the floor.\n"
+                f"- Do NOT summarize what others have said or describe the state of the room.\n"
+                f"- Never write dialogue, thoughts, or actions for anyone other than yourself."
             )
 
         # 3. Responding Character Identity & Persona (Tavern Spec V2 Tier 1)
@@ -106,26 +112,16 @@ class ContextManager:
             system_blocks.append(f"=== STORY RECAP & MILESTONES ===\n{story_summary}")
 
         # 6. Spoken Dialogue & Multimodal Rules
-        dialogue_reminder = f"Generate ONLY direct spoken dialogue as {char_name}. No actions, no asterisks, no narrative prose."
-        post_instr = ""
-        if character_data.get('post_history_instructions'):
-            ujb_text = self.replace_macros(
-                character_data.get('post_history_instructions'),
-                char_name,
-                user_name,
-                original_fallback="Ensure the response remains concise and formatted properly in-character."
-            )
-            post_instr = f"\n- Post-History Guidance: {ujb_text}"
-
         system_blocks.append(
             f"=== OUTPUT FORMAT & CAPABILITIES ===\n"
             f"- Roleplay medium: Direct live spoken conversation.\n"
             f"- Vision & Multimodal: You have vision capabilities and can perceive, observe, and comment on any images shared by {user_name}.\n"
             f"- Generate ONLY spoken dialogue in first-person as {char_name}.\n"
+            f"- Strict length limit: Limit your spoken reply strictly to 1-2 sentences.\n"
             f"- STRICTLY PROHIBITED: Do not write narrative prose, scene descriptions, body language, facial expressions, inner thoughts, or stage directions.\n"
             f"- Do NOT use asterisks (*...*), brackets ([...]), or parentheses ((...)) for actions or expressions.\n"
             f"- Do NOT refer to yourself in the third person or prefix your lines with '{char_name}:' or '{{char}}:'.\n"
-            f"- Output the exact spoken words directly, as if speaking aloud into a microphone.{post_instr}"
+            f"- Output the exact spoken words directly, as if speaking aloud into a microphone."
         )
 
         full_system_prompt = "\n\n".join(system_blocks)
@@ -212,6 +208,37 @@ class ContextManager:
                         content_str = f"{speaker_label}: {content_str}"
                     messages.append({"role": "user", "content": content_str})
 
+        # 8. Post-History Recency Instruction (Injected at the very end of the context window)
+        ujb_text = ""
+        if character_data.get('post_history_instructions'):
+            ujb_text = self.replace_macros(
+                character_data.get('post_history_instructions'),
+                char_name,
+                user_name,
+                original_fallback=""
+            ).strip()
+
+        if is_multiroom:
+            recency_directives = [
+                f"Respond strictly as {char_name}.",
+                f"Address only ONE person (either {user_name} or one specific character).",
+                "Limit your spoken reply strictly to 1-2 sentences.",
+                "Generate direct spoken dialogue only. Do NOT narrate, describe actions, or speak for other characters."
+            ]
+        else:
+            recency_directives = [
+                f"Respond strictly as {char_name}.",
+                "Limit your spoken reply strictly to 1-2 sentences.",
+                "Generate direct spoken dialogue only. No narrative prose, asterisks, or stage directions."
+            ]
+
+        if ujb_text:
+            recency_directives.append(ujb_text)
+
+        post_history_directive = "[System Note: " + " ".join(recency_directives) + "]"
+        messages.append({"role": "system", "content": post_history_directive})
+
         return messages
 
 context_manager = ContextManager()
+
